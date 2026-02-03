@@ -15,7 +15,7 @@ public class ExpMug : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        waterLevel = 0.0f;
+        waterLevel = 1.0f;
         automation_flag = false;
         rb = GetComponent<Rigidbody>();
         og = GetComponent<OVRGrabbable>();

@@ -32,7 +32,7 @@ public class Experiment1 : MonoBehaviour
      */
     [Header("VR Systems")]
     [SerializeField] GameObject VRsys; [SerializeField] GameObject leftHand, rightHand;
-    public GameObject robot;
+    //public GameObject robot;
 
     [Header("Experiment Objects")]
     [SerializeField] GameObject faucetObject;
@@ -59,8 +59,8 @@ public class Experiment1 : MonoBehaviour
     public DualArm armSys;
 
     [Header("One-shot Automation")]
-    [SerializeField] private float waterOneShotDurationSeconds = 2.0f;
-    [SerializeField] private float saltOneShotDurationSeconds = 2.0f;
+    [SerializeField] private AnimationClip waterOneShotClip;
+    [SerializeField] private AnimationClip saltOneShotClip;
 
     // One-shot automation state (start on keypress, take back when done)
     private bool pendingWaterOneShot;
@@ -107,7 +107,7 @@ public class Experiment1 : MonoBehaviour
         progressAmount = 0f;
         if (autoStartOnPlay)
         {
-            StartTrial();
+            startExperiment();
         }
         //Vector3 compensate = new Vector3(-armSysL.head.position.x, 0, -2.2f - armSysL.head.position.z);
         //VRsys.transform.position += compensate;
@@ -233,7 +233,7 @@ public class Experiment1 : MonoBehaviour
         }
 
         pendingWaterOneShot = true;
-        waterOneShotEndTime = Time.time + Mathf.Max(0.01f, waterOneShotDurationSeconds);
+        waterOneShotEndTime = Time.time + Mathf.Max(0.01f, waterOneShotClip.length);
 
         if (ExpFaucet != null) ExpFaucet.Overtake();
         if (ExpMug != null) ExpMug.Overtake();
@@ -249,7 +249,7 @@ public class Experiment1 : MonoBehaviour
         }
 
         pendingSaltOneShot = true;
-        saltOneShotEndTime = Time.time + Mathf.Max(0.01f, saltOneShotDurationSeconds);
+        saltOneShotEndTime = Time.time + Mathf.Max(0.01f, saltOneShotClip.length);
 
         if (ExpSalt != null) ExpSalt.Overtake();
         if (ExpSalt != null) SetRightArmAutomation(true, ExpSalt.transform);
@@ -375,6 +375,7 @@ public class Experiment1 : MonoBehaviour
         burntAmount = burnt;
         saltAmount = salt;
         progressAmount = progress;
+        Debug.LogWarning("Updated values: " + burntAmount + ", " + saltAmount + ", " + progressAmount);
     }
 
     void UpdateSliderColor(Slider slider, float value)

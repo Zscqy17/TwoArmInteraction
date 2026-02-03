@@ -41,8 +41,10 @@ public class ExpPan : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        Debug.LogError(manager.experimentStarted());
         if (manager.experimentStarted())
         {
+            Debug.LogError("Pan Update: burn=" + burn + ", stir=" + stir + ", grabbed=" + IsPanGrabbed + ", stop=" + stop_flag);
             if (burn && stir && IsPanGrabbed && !stop_flag)
             {
                 // 1. when the pan is kept over the stove
