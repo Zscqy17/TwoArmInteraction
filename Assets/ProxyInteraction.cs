@@ -25,6 +25,9 @@ public class ProxyInteraction : MonoBehaviour
     private Collider waterCupCollider;
     private Collider saltContainerCollider;
 
+    private Pose waterCupStartPose;
+    private Pose saltContainerStartPose;
+
     private bool waterDenied;
     private bool saltDenied;
     private bool waterInPan;
@@ -37,10 +40,12 @@ public class ProxyInteraction : MonoBehaviour
         if (waterCup != null)
         {
             waterCupCollider = waterCup.GetComponentInChildren<Collider>();
+            waterCupStartPose = new Pose(waterCup.transform.position, waterCup.transform.rotation);
         }
         if (saltContainer != null)
         {
             saltContainerCollider = saltContainer.GetComponentInChildren<Collider>();
+            saltContainerStartPose = new Pose(saltContainer.transform.position, saltContainer.transform.rotation);
         }
     }
 
@@ -73,7 +78,7 @@ public class ProxyInteraction : MonoBehaviour
 
     private void CheckOverlapTransitions()
     {
-        if (waterCupCollider != null)
+        if (waterCupCollider != null && waterCup != null && waterCup.activeInHierarchy)
         {
             bool inPan = IsOverlapping(waterCupCollider, panArea);
             if (inPan && !waterInPan)
@@ -97,8 +102,13 @@ public class ProxyInteraction : MonoBehaviour
                 waterInDeny = false;
             }
         }
+        else
+        {
+            waterInPan = false;
+            waterInDeny = false;
+        }
 
-        if (saltContainerCollider != null)
+        if (saltContainerCollider != null && saltContainer != null && saltContainer.activeInHierarchy)
         {
             bool inPan = IsOverlapping(saltContainerCollider, panArea);
             if (inPan && !saltInPan)
@@ -122,6 +132,11 @@ public class ProxyInteraction : MonoBehaviour
                 saltInDeny = false;
             }
         }
+        else
+        {
+            saltInPan = false;
+            saltInDeny = false;
+        }
     }
 
     private void OnWaterAccepted()
@@ -130,6 +145,7 @@ public class ProxyInteraction : MonoBehaviour
         {
             experiment.TriggerWaterOneShot();
         }
+        ResetWaterItem();
     }
 
     private void OnSaltAccepted()
@@ -138,18 +154,37 @@ public class ProxyInteraction : MonoBehaviour
         {
             experiment.TriggerSaltOneShot();
         }
+        ResetSaltItem();
     }
 
     private void OnWaterDenied()
     {
         waterDenied = true;
         UpdatePromptVisibility();
+        ResetWaterItem();
     }
 
     private void OnSaltDenied()
     {
         saltDenied = true;
         UpdatePromptVisibility();
+        ResetSaltItem();
+    }
+
+    private void ResetWaterItem()
+    {
+        if (waterCup == null) return;
+        waterCup.transform.SetPositionAndRotation(waterCupStartPose.position, waterCupStartPose.rotation);
+        waterInPan = false;
+        waterInDeny = false;
+    }
+
+    private void ResetSaltItem()
+    {
+        if (saltContainer == null) return;
+        saltContainer.transform.SetPositionAndRotation(saltContainerStartPose.position, saltContainerStartPose.rotation);
+        saltInPan = false;
+        saltInDeny = false;
     }
 
     private static bool IsOverlapping(Collider item, Collider area)
