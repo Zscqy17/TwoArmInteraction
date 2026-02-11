@@ -376,8 +376,9 @@ public class HandGrabbing : MonoBehaviour
                 grabbedRigidbody.MoveRotation(grabbableRotation);
             }
         }
-        catch
+        catch (System.Exception e) // Catch any exception to avoid breaking the grab, but log it for debugging purposes.
         {
+            Debug.LogException(e);
             Debug.LogError("An error was thrown when grabbing, but it should not be fatal.");
         }
     }
