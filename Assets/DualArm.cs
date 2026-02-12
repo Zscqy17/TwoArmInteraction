@@ -137,7 +137,7 @@ public class DualArm : MonoBehaviour
         // LEFT arm
         if (!overtakeLeft)
         {
-            supposed.position = basePos + restL;
+            supposed.position = basePos + restL + Vector3.up * 0.6f + Vector3.right * 0.1f;
             supposed.rotation = yawRot;
         }
         else
@@ -153,7 +153,7 @@ public class DualArm : MonoBehaviour
         // RIGHT arm
         if (!overtakeRight)
         {
-            supposedRight.position = basePos + restR + Vector3.up;
+            supposedRight.position = basePos + restR + Vector3.up * 0.6f + Vector3.left * 0.1f;
             supposedRight.rotation = yawRot;
         }
         else

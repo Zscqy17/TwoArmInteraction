@@ -1,8 +1,19 @@
 using UnityEngine;
 using UnityEngine.UI;
+using Oculus.Interaction;
+
+public enum InteractionMode
+{
+    Voice,
+    Gesture,
+    Proxy
+}
 
 public class ProxyInteraction : MonoBehaviour
 {
+    [Header("Interaction Mode")]
+    [SerializeField] private InteractionMode mode = InteractionMode.Proxy;
+
     [Header("Experiment")]
     [SerializeField] private Experiment1 experiment;
 
@@ -11,13 +22,12 @@ public class ProxyInteraction : MonoBehaviour
     [SerializeField] private Slider saltSlider;
     [SerializeField] private GameObject waterNotifyCanvas;
     [SerializeField] private GameObject saltNotifyCanvas;
-    [SerializeField] private float notifyThreshold = 0.75f;
 
     [Header("Items")]
     [SerializeField] private GameObject waterCup;
-    private OVRGrabbable waterCupGrab;
+    private Grabbable waterCupGrab;
     [SerializeField] private GameObject saltContainer;
-    private OVRGrabbable saltContainerGrab;
+    private Grabbable saltContainerGrab;
 
     [Header("Areas")]
     [SerializeField] private Collider panArea;
@@ -30,8 +40,18 @@ public class ProxyInteraction : MonoBehaviour
     private Pose waterCupStartPose;
     private Pose saltContainerStartPose;
 
-    private bool waterDenied;
-    private bool saltDenied;
+    // Per-item prompt control
+    private bool waterHighRange = false;
+    private float waterTriggerThreshold;
+    private bool waterPromptActive = false;
+
+    private bool saltHighRange = false;
+    private float saltTriggerThreshold;
+    private bool saltPromptActive = false;
+
+    private bool waterNeedsReset = false;
+    private bool saltNeedsReset = false;
+
     private bool waterInPan;
     private bool saltInPan;
     private bool waterInDeny;
@@ -45,14 +65,23 @@ public class ProxyInteraction : MonoBehaviour
         {
             waterCupCollider = waterCup.GetComponentInChildren<Collider>();
             waterCupStartPose = new Pose(waterCup.transform.position, waterCup.transform.rotation);
-            waterCupGrab = waterCup.GetComponent<OVRGrabbable>();
+            waterCupGrab = waterCup.GetComponent<Grabbable>();
         }
         if (saltContainer != null)
         {
             saltContainerCollider = saltContainer.GetComponentInChildren<Collider>();
             saltContainerStartPose = new Pose(saltContainer.transform.position, saltContainer.transform.rotation);
-            saltContainerGrab = saltContainer.GetComponent<OVRGrabbable>();
+            saltContainerGrab = saltContainer.GetComponent<Grabbable>();
         }
+
+        waterTriggerThreshold = PickThreshold(waterHighRange);
+        saltTriggerThreshold = PickThreshold(saltHighRange);
+
+        // Hide prompts and items at start (keep GameObjects active)
+        SetItemVisible(waterNotifyCanvas, false);
+        SetItemVisible(saltNotifyCanvas, false);
+        SetItemVisible(waterCup, false);
+        SetItemVisible(saltContainer, false);
     }
 
     private void Update()
@@ -60,45 +89,86 @@ public class ProxyInteraction : MonoBehaviour
         UpdatePromptVisibility();
         CheckOverlapTransitions();
         checkForResets();
+        NotifyPromptState();
+        HandleVoiceKeys();
+    }
+
+    private void HandleVoiceKeys()
+    {
+        if (mode != InteractionMode.Voice) return;
+
+        if (Input.GetKeyUp(KeyCode.Q) && waterPromptActive)
+        {
+            OnWaterAccepted();
+        }
+        if (Input.GetKeyUp(KeyCode.P) && saltPromptActive)
+        {
+            OnSaltAccepted();
+        }
     }
 
     private void UpdatePromptVisibility()
     {
-        bool forceShowBoth = (waterSlider != null && waterSlider.value >= 1f) ||
-                             (saltSlider != null && saltSlider.value >= 1f);
-
-        bool waterThresholdReached = waterSlider != null && waterSlider.value >= notifyThreshold;
-        if (!waterThresholdReached)
+        // Water
+        if (!waterPromptActive && waterSlider != null)
         {
-            waterDenied = false;
+            if (waterNeedsReset)
+            {
+                if (waterSlider.value <= waterTriggerThreshold - 0.05f)
+                    waterNeedsReset = false;
+            }
+            else
+            {
+                bool thresholdReached = waterSlider.value >= waterTriggerThreshold;
+                bool full = waterSlider.value >= 0.99f;
+
+                if (thresholdReached || full)
+                {
+                    waterPromptActive = true;
+                    waterHighRange = !waterHighRange;
+                    SetItemVisible(waterNotifyCanvas, true);
+                    if (mode == InteractionMode.Proxy)
+                    {
+                        SetItemVisible(waterCup, true);
+                        TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
+                    }
+                }
+            }
         }
 
-        bool saltThresholdReached = saltSlider != null && saltSlider.value >= notifyThreshold;
-        if (!saltThresholdReached)
+        // Salt
+        if (!saltPromptActive && saltSlider != null)
         {
-            saltDenied = false;
+            if (saltNeedsReset)
+            {
+                if (saltSlider.value <= saltTriggerThreshold - 0.05f)
+                    saltNeedsReset = false;
+            }
+            else
+            {
+                bool thresholdReached = saltSlider.value >= saltTriggerThreshold;
+                bool full = saltSlider.value >= 0.99f;
+
+                if (thresholdReached || full)
+                {
+                    saltPromptActive = true;
+                    saltHighRange = !saltHighRange;
+                    SetItemVisible(saltNotifyCanvas, true);
+                    if (mode == InteractionMode.Proxy)
+                    {
+                        SetItemVisible(saltContainer, true);
+                        TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
+                    }
+                }
+            }
         }
-
-        if (forceShowBoth)
-        {
-            waterDenied = false;
-            saltDenied = false;
-        }
-
-        bool showWater = forceShowBoth || (waterThresholdReached && !waterDenied);
-        SetActiveIfNotNull(waterNotifyCanvas, showWater);
-        SetItemVisible(waterCup, showWater);
-        if (showWater) TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
-
-        bool showSalt = forceShowBoth || (saltThresholdReached && !saltDenied);
-        SetActiveIfNotNull(saltNotifyCanvas, showSalt);
-        SetItemVisible(saltContainer, showSalt);
-        if (showSalt) TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
     }
 
     private void CheckOverlapTransitions()
     {
-        bool waterGrabbed = waterCupGrab != null && waterCupGrab.isGrabbed;
+        if (mode != InteractionMode.Proxy) return;
+
+        bool waterGrabbed = waterCupGrab != null && waterCupGrab.SelectingPointsCount > 0;
         if (waterCupCollider != null && IsItemVisible(waterCup) && waterGrabbed)
         {
             bool inPan = IsOverlapping(waterCupCollider, panArea);
@@ -129,7 +199,7 @@ public class ProxyInteraction : MonoBehaviour
             waterInDeny = false;
         }
 
-        bool saltGrabbed = saltContainerGrab != null && saltContainerGrab.isGrabbed;
+        bool saltGrabbed = saltContainerGrab != null && saltContainerGrab.SelectingPointsCount > 0;
         if (saltContainerCollider != null && IsItemVisible(saltContainer) && saltGrabbed)
         {
             bool inPan = IsOverlapping(saltContainerCollider, panArea);
@@ -163,12 +233,12 @@ public class ProxyInteraction : MonoBehaviour
 
     private void checkForResets()
     {
-        if (waterToReset && (waterCupGrab == null || !waterCupGrab.isGrabbed))
+        if (waterToReset && (waterCupGrab == null || waterCupGrab.SelectingPointsCount == 0))
         {
             ResetWaterItem();
             waterToReset = false;
         }
-        if (saltToReset && (saltContainerGrab == null || !saltContainerGrab.isGrabbed))
+        if (saltToReset && (saltContainerGrab == null || saltContainerGrab.SelectingPointsCount == 0))
         {
             ResetSaltItem();
             saltToReset = false;
@@ -181,6 +251,11 @@ public class ProxyInteraction : MonoBehaviour
         {
             experiment.TriggerWaterOneShot();
         }
+        waterPromptActive = false;
+        waterTriggerThreshold = PickThreshold(waterHighRange);
+        waterNeedsReset = true;
+        SetItemVisible(waterNotifyCanvas, false);
+        ForceReleaseGrab(waterCupGrab);
         waterToReset = true;
         SetItemVisible(waterCup, false);
     }
@@ -191,47 +266,64 @@ public class ProxyInteraction : MonoBehaviour
         {
             experiment.TriggerSaltOneShot();
         }
+        saltPromptActive = false;
+        saltTriggerThreshold = PickThreshold(saltHighRange);
+        saltNeedsReset = true;
+        SetItemVisible(saltNotifyCanvas, false);
+        ForceReleaseGrab(saltContainerGrab);
         saltToReset = true;
         SetItemVisible(saltContainer, false);
     }
 
     private void OnWaterDenied()
     {
-        waterDenied = true;
-        UpdatePromptVisibility();
+        waterPromptActive = false;
+        waterTriggerThreshold = PickThreshold(waterHighRange);
+        waterNeedsReset = true;
+        SetItemVisible(waterNotifyCanvas, false);
+        //ForceReleaseGrab(waterCupGrab);
         waterToReset = true;
         SetItemVisible(waterCup, false);
-        RevealSaltIfHidden();
     }
 
     private void OnSaltDenied()
     {
-        saltDenied = true;
-        UpdatePromptVisibility();
+        saltPromptActive = false;
+        saltTriggerThreshold = PickThreshold(saltHighRange);
+        saltNeedsReset = true;
+        SetItemVisible(saltNotifyCanvas, false);
+        //ForceReleaseGrab(saltContainerGrab);
         saltToReset = true;
         SetItemVisible(saltContainer, false);
-        RevealWaterIfHidden();
     }
 
     private void RevealSaltIfHidden()
     {
-        if (!IsItemVisible(saltContainer))
+        if (!saltPromptActive)
         {
-            saltDenied = false;
-            SetActiveIfNotNull(saltNotifyCanvas, true);
-            SetItemVisible(saltContainer, true);
-            TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
+            saltPromptActive = true;
+            saltHighRange = !saltHighRange;
+            SetItemVisible(saltNotifyCanvas, true);
+            if (mode == InteractionMode.Proxy)
+            {
+                SetItemVisible(saltContainer, true);
+                TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
+            }
         }
     }
 
     private void RevealWaterIfHidden()
     {
-        if (!IsItemVisible(waterCup))
+        if (!waterPromptActive)
         {
-            waterDenied = false;
-            SetActiveIfNotNull(waterNotifyCanvas, true);
-            SetItemVisible(waterCup, true);
-            TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
+            waterPromptActive = true;
+            waterHighRange = !waterHighRange;
+            SetItemVisible(waterNotifyCanvas, true);
+            if (mode == InteractionMode.Proxy)
+            {
+                SetItemVisible(waterCup, true);
+                TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
+            }
         }
     }
 
@@ -239,7 +331,17 @@ public class ProxyInteraction : MonoBehaviour
     {
         if (obj == null) return;
         foreach (var r in obj.GetComponentsInChildren<Renderer>(true)) r.enabled = visible;
-        foreach (var c in obj.GetComponentsInChildren<Collider>(true)) c.enabled = visible;
+    }
+
+    private static void ForceReleaseGrab(Grabbable grabbable)
+    {
+        if (grabbable == null) return;
+        while (grabbable.SelectingPointsCount > 0)
+        {
+            var points = grabbable.SelectingPoints;
+            grabbable.ProcessPointerEvent(
+                new PointerEvent(0, PointerEventType.Cancel, points[0]));
+        }
     }
 
     private static bool IsItemVisible(GameObject obj)
@@ -249,18 +351,18 @@ public class ProxyInteraction : MonoBehaviour
         return renderer != null && renderer.enabled;
     }
 
-    private static void TryResetIfFree(GameObject obj, Pose pose, OVRGrabbable grab)
+    private static void TryResetIfFree(GameObject obj, Pose pose, Grabbable grab)
     {
         if (obj == null) return;
-        if (grab != null && grab.isGrabbed) return;
+        if (grab != null && grab.SelectingPointsCount > 0) return;
         obj.transform.SetPositionAndRotation(pose.position, pose.rotation);
     }
 
-    private static void SetActiveIfNotNull(GameObject obj, bool active)
+    private void NotifyPromptState()
     {
-        if (obj != null && obj.activeSelf != active)
+        if (experiment != null)
         {
-            obj.SetActive(active);
+            experiment.SetPromptPause(waterPromptActive || saltPromptActive);
         }
     }
 
@@ -270,15 +372,42 @@ public class ProxyInteraction : MonoBehaviour
         return item.bounds.Intersects(area.bounds);
     }
 
+    private static float PickThreshold(bool highRange)
+    {
+        return highRange
+            ? Random.Range(0.56f, 0.9f)
+            : Random.Range(0.23f, 0.45f);
+    }
+
     private void ResetWaterItem()
     {
-        SetItemVisible(waterCup, true);
         TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
     }
 
     private void ResetSaltItem()
     {
-        SetItemVisible(saltContainer, true);
         TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
+    }
+
+    public void GestureWater(bool agreed)
+    {
+        if (mode != InteractionMode.Gesture) return;
+        if (!waterPromptActive) return;
+
+        if (agreed)
+            OnWaterAccepted();
+        else
+            OnWaterDenied();
+    }
+
+    public void GestureSalt(bool agreed)
+    {
+        if (mode != InteractionMode.Gesture) return;
+        if (!saltPromptActive) return;
+
+        if (agreed)
+            OnSaltAccepted();
+        else
+            OnSaltDenied();
     }
 }

@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using Oculus.Interaction;
 
 public class ExpPan : MonoBehaviour
 {
@@ -11,7 +12,7 @@ public class ExpPan : MonoBehaviour
     bool stir, burn;
     bool automation_flag;
     bool stop_flag;
-    [SerializeField] OVRGrabbable handle;
+    [SerializeField] Grabbable handle;
     [SerializeField] Experiment1 manager;
 
     [Header("Tuning (seconds to fill from 0 → 1)")]
@@ -36,7 +37,7 @@ public class ExpPan : MonoBehaviour
     // Exposed state for logging/analytics (read-only)
     public bool IsOnStove => burn;
     public bool IsStirring => stir;
-    public bool IsPanGrabbed => handle != null && handle.isGrabbed;
+    public bool IsPanGrabbed => handle != null && handle.SelectingPointsCount > 0;
 
     // Update is called once per frame
     void Update()
@@ -54,19 +55,10 @@ public class ExpPan : MonoBehaviour
             }
             else if (burn && stir && IsPanGrabbed)
             {
-                // Progress is paused, but time pressure continues.
-                burntLevel = Mathf.Clamp01(burntLevel + Time.deltaTime / Mathf.Max(0.01f, burnFillSeconds));
-                saltLevel = Mathf.Clamp01(saltLevel + Time.deltaTime / Mathf.Max(0.01f, saltFillSeconds));
+                // Progress is paused
             }
             //Debug.Log(burntLevel + "," + saltLevel + "," + progressLevel);
             manager.updateVal(burntLevel, saltLevel, progressLevel);
-        }
-        if (Mug.Automated())
-        {
-            if (burntLevel > 0.0f)
-            {
-                //burntLevel -= Time.deltaTime / 1.5f;
-            }
         }
     }
 

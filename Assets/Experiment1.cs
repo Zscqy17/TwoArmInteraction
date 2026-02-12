@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
+using Oculus.Interaction;
 
 enum Exp1Type
 {
@@ -44,13 +45,14 @@ public class Experiment1 : MonoBehaviour
     [SerializeField] ExpPan ExpPan;
     [SerializeField] ExpSalt ExpSalt;
 
-    [SerializeField] OVRGrabbable triggerSphere;
+    [SerializeField] Grabbable triggerSphere;
 
     [Header("Experiment UI")]
     [SerializeField] Slider burntLevel; [SerializeField] Slider saltLevel, progressLevel; [SerializeField] GameObject initText, doneText, failedText, tutorial1, tutorial2, tutorial3;
 
     float burntAmount, saltAmount, progressAmount;
     bool foodDone, ongoing, grabflag, progressHold;
+    private bool promptPause;
 
     Color warningColor = new Color(1f, 0.6f, 0.6f);
     float saltCycle = 15f, waterCycle = 20f;
@@ -115,7 +117,7 @@ public class Experiment1 : MonoBehaviour
 
     private void Update()
     {
-        if (triggerSphere.isGrabbed)
+        if (triggerSphere.SelectingPointsCount > 0)
         {
             // we've grabbed the trigger sphere
             grabflag = true;
@@ -174,10 +176,6 @@ public class Experiment1 : MonoBehaviour
             burntLevel.value = burntAmount;
             progressLevel.value = progressAmount;
             saltLevel.value = saltAmount;
-
-            // also update the slider's color
-            UpdateSliderColor(saltLevel, saltAmount);
-            UpdateSliderColor(burntLevel, burntAmount);
         }
         else
         {
@@ -187,10 +185,10 @@ public class Experiment1 : MonoBehaviour
 
             }
         }
-        if (burntAmount >= 1f || saltAmount >= 1f)
+        if (burntAmount >= 1f || saltAmount >= 1f || promptPause)
         {
-            // When water/salt reaches 1.0, we DO NOT fail the trial.
-            // Instead, we pause the main progress until the participant adds water/salt.
+            // When water/salt reaches 1.0 or a proxy prompt is being shown,
+            // pause the main progress until the participant resolves it.
             progressHold = true;
             ExpPan.ProgressPause();
         }
@@ -312,6 +310,7 @@ public class Experiment1 : MonoBehaviour
         // Reset trial state
         foodDone = false;
         ongoing = true;
+        promptPause = false;
         pendingWaterOneShot = false;
         pendingSaltOneShot = false;
         waterOneShotEndTime = 0f;
@@ -375,23 +374,6 @@ public class Experiment1 : MonoBehaviour
         burntAmount = burnt;
         saltAmount = salt;
         progressAmount = progress;
-        Debug.LogWarning("Updated values: " + burntAmount + ", " + saltAmount + ", " + progressAmount);
-    }
-
-    void UpdateSliderColor(Slider slider, float value)
-    {
-        // Access the Fill Rect's Image component
-        Image fillImage = slider.fillRect.GetComponent<Image>();
-
-        // Change color based on value
-        if (value >= 0.99f)
-        {
-            fillImage.color = warningColor;
-        }
-        else
-        {
-            fillImage.color = Color.white;
-        }
     }
 
     public bool experimentStarted()
@@ -399,4 +381,8 @@ public class Experiment1 : MonoBehaviour
         return ongoing;
     }
 
+    public void SetPromptPause(bool paused)
+    {
+        promptPause = paused;
+    }
 }
