@@ -15,6 +15,10 @@ public class ExpPan : MonoBehaviour
     [SerializeField] Grabbable handle;
     [SerializeField] Experiment1 manager;
 
+    [Header("Spatula Overlap (bypasses physics layer matrix)")]
+    [SerializeField] private Collider spatulaCollider;
+    [SerializeField] private Collider panCollider;
+
     [Header("Tuning (seconds to fill from 0 → 1)")]
     // ~4 water interventions over a ~100s session => ~20s to fill burn meter
     [SerializeField] private float burnFillSeconds; //debug only, should be 20
@@ -37,23 +41,27 @@ public class ExpPan : MonoBehaviour
     // Exposed state for logging/analytics (read-only)
     public bool IsOnStove => burn;
     public bool IsStirring => stir;
-    public bool IsPanGrabbed => handle != null && handle.SelectingPointsCount > 0;
 
     // Update is called once per frame
     void Update()
     {
+        // Manual overlap check for Spatula (physics layers disabled between Pan & Spatula)
+        if (spatulaCollider != null && panCollider != null)
+        {
+            stir = panCollider.bounds.Intersects(spatulaCollider.bounds);
+        }
+
         if (manager.experimentStarted())
         {
-            if (burn && stir && IsPanGrabbed && !stop_flag)
+            if (burn && !stop_flag)
             {
                 // 1. when the pan is kept over the stove
-                // 2. when the user is stiring the pan
-                // 3. when the progress is not hindered by anything
+                // 2. when the progress is not hindered by anything
                 burntLevel = Mathf.Clamp01(burntLevel + Time.deltaTime / Mathf.Max(0.01f, burnFillSeconds));
                 saltLevel = Mathf.Clamp01(saltLevel + Time.deltaTime / Mathf.Max(0.01f, saltFillSeconds));
                 progressLevel = Mathf.Clamp01(progressLevel + Time.deltaTime / Mathf.Max(0.01f, progressFillSeconds));
             }
-            else if (burn && stir && IsPanGrabbed)
+            else if (burn)
             {
                 // Progress is paused
             }
@@ -69,8 +77,8 @@ public class ExpPan : MonoBehaviour
         {
             if (Mug.pourWater())
             {
-                // if there is water in the cup
-                if (burntLevel > 0.0f)
+                // Only decrease burn level once it has reached full (1.0), but it's 0.98 cuz clamping
+                if (burntLevel >= 0.9f)
                 {
                     burntLevel = Mathf.Clamp01(burntLevel - Time.deltaTime / 0.4f);
                     if (manager != null)
@@ -82,7 +90,8 @@ public class ExpPan : MonoBehaviour
         }
         if (other.gameObject.name == Salt.gameObject.name)
         {
-            if (saltLevel > 0.0f)
+            // Only decrease salt level once it has reached full (1.0)
+            if (saltLevel >= 0.9f)
             {
                 saltLevel = Mathf.Clamp01(saltLevel - Time.deltaTime / 0.4f);
                 if (manager != null)
@@ -91,18 +100,10 @@ public class ExpPan : MonoBehaviour
                 }
             }
         }
-        if (other.gameObject.name == "Spatula")
-        {
-            stir = true;
-        }
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other.gameObject.name == "Spatula")
-        {
-            stir = true;
-        }
         if (other.gameObject.name == "stove")
         {
             burn = true;
@@ -116,10 +117,6 @@ public class ExpPan : MonoBehaviour
 
     private void OnTriggerExit(Collider other)
     {
-        if (other.gameObject.name == "Spatula")
-        {
-            stir = false;
-        }
         if (other.gameObject.name == "stove")
         {
             burn = false;

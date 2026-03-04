@@ -5,13 +5,6 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using Oculus.Interaction;
 
-enum Exp1Type
-{
-    Manual,
-    Request,
-    Auto
-}
-
 public class Experiment1 : MonoBehaviour
 {
     // this is the script for all things featured in experiment 1.
@@ -55,7 +48,6 @@ public class Experiment1 : MonoBehaviour
     private bool promptPause;
 
     Color warningColor = new Color(1f, 0.6f, 0.6f);
-    float saltCycle = 15f, waterCycle = 20f;
 
     [Header("Arms System")]
     public DualArm armSys;
@@ -69,6 +61,11 @@ public class Experiment1 : MonoBehaviour
     private bool pendingSaltOneShot;
     private float waterOneShotEndTime;
     private float saltOneShotEndTime;
+
+    // Post-prompt hold: progress stays paused after a prompt is accepted
+    // until the actual item enters the pan OR the one-shot animation ends.
+    private bool waterEffectHold;
+    private bool saltEffectHold;
 
     // --- Arm control helpers (avoid confusing bool parameters sprinkled around) ---
     private void SetLeftArmAutomation(bool enabled, Transform target = null)
@@ -97,6 +94,7 @@ public class Experiment1 : MonoBehaviour
 
     [Header("Logging")]
     [SerializeField] private ExpLogging logger;
+    [SerializeField] private ProxyInteraction proxyInteraction;
 
     private void Start()
     {
@@ -159,13 +157,11 @@ public class Experiment1 : MonoBehaviour
 
     private void TrackMetrics(float dt)
     {
-        bool onStove = (ExpPan != null) && ExpPan.IsOnStove;
-        bool stirring = (ExpPan != null) && ExpPan.IsStirring;
-        bool panGrabbed = (ExpPan != null) && ExpPan.IsPanGrabbed;
-
         if (logger != null)
         {
-            logger.Track(dt, burntAmount, saltAmount, progressHold, onStove, stirring, panGrabbed);
+            string modeName = proxyInteraction != null ? proxyInteraction.Mode.ToString() : "Unknown";
+            logger.CheckProgressStart(progressAmount, modeName);
+            logger.TrackHinderedTime(dt, progressHold);
         }
     }
 
@@ -185,10 +181,10 @@ public class Experiment1 : MonoBehaviour
 
             }
         }
-        if (burntAmount >= 1f || saltAmount >= 1f || promptPause)
+        if (promptPause || waterEffectHold || saltEffectHold)
         {
-            // When water/salt reaches 1.0 or a proxy prompt is being shown,
-            // pause the main progress until the participant resolves it.
+            // Pause progress while a prompt is shown, OR while waiting
+            // for the actual item to hit the pan / animation to finish.
             progressHold = true;
             ExpPan.ProgressPause();
         }
@@ -209,6 +205,7 @@ public class Experiment1 : MonoBehaviour
         if (pendingWaterOneShot && Time.time >= waterOneShotEndTime)
         {
             pendingWaterOneShot = false;
+            waterEffectHold = false;
             if (ExpMug != null) ExpMug.Takeback();
             if (ExpFaucet != null) ExpFaucet.Takeback();
             SetLeftArmAutomation(false);
@@ -217,6 +214,7 @@ public class Experiment1 : MonoBehaviour
         if (pendingSaltOneShot && Time.time >= saltOneShotEndTime)
         {
             pendingSaltOneShot = false;
+            saltEffectHold = false;
             if (ExpSalt != null) ExpSalt.Takeback();
             SetRightArmAutomation(false);
         }
@@ -231,6 +229,7 @@ public class Experiment1 : MonoBehaviour
         }
 
         pendingWaterOneShot = true;
+        waterEffectHold = true;
         waterOneShotEndTime = Time.time + Mathf.Max(0.01f, waterOneShotClip.length);
 
         if (ExpFaucet != null) ExpFaucet.Overtake();
@@ -247,6 +246,7 @@ public class Experiment1 : MonoBehaviour
         }
 
         pendingSaltOneShot = true;
+        saltEffectHold = true;
         saltOneShotEndTime = Time.time + Mathf.Max(0.01f, saltOneShotClip.length);
 
         if (ExpSalt != null) ExpSalt.Overtake();
@@ -276,11 +276,9 @@ public class Experiment1 : MonoBehaviour
 
     private void RestartScene()
     {
-        // If we're mid-trial, log it as an aborted/restarted trial before reloading.
-        if (ongoing)
-        {
-            EndTrial(success: false, endReason: "restart");
-        }
+        // Discard the log — restart means the trial data is not useful.
+        if (logger != null) logger.DiscardLog();
+        ongoing = false;
 
         // Prefer the arm system helper if present; otherwise restart directly.
         if (armSys != null)
@@ -290,6 +288,12 @@ public class Experiment1 : MonoBehaviour
         }
 
         SceneManager.LoadScene(SceneManager.GetActiveScene().name);
+    }
+
+    private void OnApplicationQuit()
+    {
+        // Discard log on quit so incomplete trials are not saved.
+        if (logger != null) logger.DiscardLog();
     }
 
     public void startExperiment()
@@ -313,11 +317,13 @@ public class Experiment1 : MonoBehaviour
         promptPause = false;
         pendingWaterOneShot = false;
         pendingSaltOneShot = false;
+        waterEffectHold = false;
+        saltEffectHold = false;
         waterOneShotEndTime = 0f;
         saltOneShotEndTime = 0f;
         if (logger != null)
         {
-            logger.StartTrial((ExpPan != null) && ExpPan.IsPanGrabbed);
+            logger.ResetForNewTrial();
         }
     }
 
@@ -331,6 +337,8 @@ public class Experiment1 : MonoBehaviour
         // Ensure no one-shot automations stay latched on after a trial ends
         pendingWaterOneShot = false;
         pendingSaltOneShot = false;
+        waterEffectHold = false;
+        saltEffectHold = false;
         waterOneShotEndTime = 0f;
         saltOneShotEndTime = 0f;
 
@@ -347,7 +355,7 @@ public class Experiment1 : MonoBehaviour
 
         if (logger != null)
         {
-            logger.EndTrial(success, endReason, burntAmount, saltAmount, progressAmount);
+            logger.EndLogging();
         }
     }
 
@@ -357,7 +365,7 @@ public class Experiment1 : MonoBehaviour
     /// </summary>
     public void NotifyWaterEffect()
     {
-        if (logger != null) logger.NotifyWaterEffect();
+        waterEffectHold = false;
     }
 
     /// <summary>
@@ -366,7 +374,7 @@ public class Experiment1 : MonoBehaviour
     /// </summary>
     public void NotifySaltEffect()
     {
-        if (logger != null) logger.NotifySaltEffect();
+        saltEffectHold = false;
     }
 
     public void updateVal(float burnt, float salt, float progress)
@@ -384,5 +392,17 @@ public class Experiment1 : MonoBehaviour
     public void SetPromptPause(bool paused)
     {
         promptPause = paused;
+    }
+
+    // ── Logging forwarding (called by ProxyInteraction) ──────────────
+
+    public void LogPromptShown(string type)
+    {
+        if (logger != null) logger.OnPromptShown(type);
+    }
+
+    public void LogPromptDecision(string type, bool accepted)
+    {
+        if (logger != null) logger.OnPromptDecision(type, accepted);
     }
 }

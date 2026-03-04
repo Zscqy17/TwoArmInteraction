@@ -26,15 +26,16 @@ public class DualArm : MonoBehaviour
     public Transform supposed, supposedRight;
     private Transform reachingFor, reachingForRight;
 
-    [Header("Rest Pose Offsets (Yaw-only space)")]
+    [Header("Resting Positions")]
+    public Transform restingLeft;
+    public Transform restingRight;
+
+    [Header("Arm Offsets (Yaw-only space)")]
     [Tooltip("Shoulder offset from head in (right, up, forward) using yaw-only basis. X is lateral (mirrored between arms), Y and Z are shared.")]
     public Vector3 shoulderOffset = new Vector3(0.25f, -0.30f, -0.15f);
 
     [Tooltip("Elbow offset from head in (right, up, forward) using yaw-only basis. X is lateral (mirrored between arms), Y and Z are shared.")]
     public Vector3 elbowOffset = new Vector3(0.45f, -0.55f, 0.10f);
-
-    [Tooltip("Where the arm tries to rest when not overtaking, in (right, up, forward) yaw-only basis. X is lateral (mirrored between arms), Y and Z are shared.")]
-    public Vector3 restHandOffset = new Vector3(0.40f, -1.00f, 0.35f);
 
     // Each arm has independent automation state
     private bool overtakeLeft, overtakeRight;
@@ -125,20 +126,14 @@ public class DualArm : MonoBehaviour
 
     private void UpdateSupposedPositions()
     {
-        // Use yaw-only basis for rest pose. If bodyYawRoot is set, this ignores head yaw.
-        GetYawOnlyBasis(out var fwd, out var right, out var up);
-        Quaternion yawRot = GetYawOnlyRotation();
-        Vector3 basePos = head.position;
-
-        // Rest targets: mirror only the lateral component (X)
-        Vector3 restR = YawSpaceOffsetToWorld(restHandOffset, right, up, fwd);
-        Vector3 restL = YawSpaceOffsetToWorld(new Vector3(-restHandOffset.x, restHandOffset.y, restHandOffset.z), right, up, fwd);
-
         // LEFT arm
         if (!overtakeLeft)
         {
-            supposed.position = basePos + restL + Vector3.up * 0.6f + Vector3.right * 0.1f;
-            supposed.rotation = yawRot;
+            if (restingLeft != null)
+            {
+                supposed.position = restingLeft.position;
+                supposed.rotation = restingLeft.rotation;
+            }
         }
         else
         {
@@ -147,14 +142,16 @@ public class DualArm : MonoBehaviour
                 supposed.position = reachingFor.position;
                 supposed.rotation = reachingFor.rotation;
             }
-            // else: keep last supposed.position/rotation
         }
 
         // RIGHT arm
         if (!overtakeRight)
         {
-            supposedRight.position = basePos + restR + Vector3.up * 0.6f + Vector3.left * 0.1f;
-            supposedRight.rotation = yawRot;
+            if (restingRight != null)
+            {
+                supposedRight.position = restingRight.position;
+                supposedRight.rotation = restingRight.rotation;
+            }
         }
         else
         {
@@ -163,7 +160,6 @@ public class DualArm : MonoBehaviour
                 supposedRight.position = reachingForRight.position;
                 supposedRight.rotation = reachingForRight.rotation;
             }
-            // else: keep last supposedRight.position/rotation
         }
     }
 

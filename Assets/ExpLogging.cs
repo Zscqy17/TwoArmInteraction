@@ -1,243 +1,217 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEngine;
 
 /// <summary>
-/// Trial logger for Experiment1 (Wizard-of-Oz compatible).
-/// Writes one CSV row per trial to Application.persistentDataPath.
+/// Experiment logger.  Automatically starts recording when the progress bar
+/// first rises above 0 and writes a timestamped log file when progress
+/// reaches 1.  Tracks prompt events, user decisions, and hindered time.
 /// </summary>
 public class ExpLogging : MonoBehaviour
 {
-    [Header("Metadata")]
-    [Tooltip("Optional participant ID to include in the CSV log (can be blank).")]
-    [SerializeField] private string participantId = "";
-
-    [Tooltip("Which of the 3 experimental conditions this run corresponds to (manual/request/auto).")]
-    [SerializeField] private Exp1Type sessionType = Exp1Type.Manual;
-
     [Header("Output")]
-    [Tooltip("CSV file name written under Application.persistentDataPath.")]
-    [SerializeField] private string logFileName = "trial_log.csv";
+    [Tooltip("Sub-folder under Application.persistentDataPath for log files.")]
+    [SerializeField] private string logFolder = "ExperimentLogs";
 
-    [Header("Counting")]
-    [Tooltip("Seconds without water/salt effect before counting a new 'episode' (distinct intervention).")]
-    [SerializeField] private float interventionGapSeconds = 0.75f;
+    // ── state ──────────────────────────────────────────────────────────
+    private bool _loggingActive;
+    private bool _loggingStarted;   // one-shot guard so we don't fire every frame
 
-    // Trial lifecycle
-    public bool IsTrialActive { get; private set; }
     private float _trialStartTime;
-    private float _trialEndTime;
+    private string _sessionMode;
+    private DateTime _logDateTime;
 
-    // Timers
-    private float _waterBlockedTime;
-    private float _saltBlockedTime;
-    private float _anyBlockedTime;
-    private float _onStoveTime;
-    private float _stirringTime;
-    private float _cookingActiveTime; // on stove + stirring + not blocked
-    private float _panHeldTime;
-
-    // Counts
-    private int _panGrabCount;
-    private int _panDisengageCount;
-
-    // Peaks
-    private float _peakBurnt;
-    private float _peakSalt;
-
-    // Intervention episodes
-    private int _waterEpisodes;
-    private int _saltEpisodes;
-    private float _lastWaterEffectTime = -999f;
-    private float _lastSaltEffectTime = -999f;
-    private bool _waterEpisodeOngoing;
-    private bool _saltEpisodeOngoing;
-
-    // Previous states
-    private bool _prevPanGrabbed;
-
-    public void StartTrial(bool initialPanGrabbed)
+    // ── prompt events ──────────────────────────────────────────────────
+    private struct PromptEvent
     {
-        IsTrialActive = true;
-        _trialStartTime = Time.time;
-        _trialEndTime = 0f;
+        public string type;           // "water" or "salt"
+        public float shownTime;       // seconds since logging started
+        public float reactionTime;    // seconds between shown and decision (-1 = pending)
+        public bool accepted;
+        public bool decided;
+    }
 
-        _waterBlockedTime = 0f;
-        _saltBlockedTime = 0f;
-        _anyBlockedTime = 0f;
-        _onStoveTime = 0f;
-        _stirringTime = 0f;
-        _cookingActiveTime = 0f;
-        _panHeldTime = 0f;
+    private readonly List<PromptEvent> _promptEvents = new List<PromptEvent>();
 
-        _panGrabCount = 0;
-        _panDisengageCount = 0;
-        _peakBurnt = 0f;
-        _peakSalt = 0f;
+    // ── hindered (progress-paused) accumulator ─────────────────────────
+    private float _totalHinderedTime;
 
-        _waterEpisodes = 0;
-        _saltEpisodes = 0;
-        _lastWaterEffectTime = -999f;
-        _lastSaltEffectTime = -999f;
-        _waterEpisodeOngoing = false;
-        _saltEpisodeOngoing = false;
+    // ── per-item decision strings (0 = deny, 1 = accept) ──────────────
+    private string _waterDecisions = "";
+    private string _saltDecisions = "";
+    private const string WaterCorrect = "011";
+    private const string SaltCorrect  = "101";
 
-        _prevPanGrabbed = initialPanGrabbed;
+    // ── public API ─────────────────────────────────────────────────────
+
+    /// <summary>True while the logger is actively recording data.</summary>
+    public bool IsLoggingActive => _loggingActive;
+
+    /// <summary>
+    /// Resets all internal state so a new trial can be tracked.
+    /// Call this at the start of each trial (before progress begins).
+    /// </summary>
+    public void ResetForNewTrial()
+    {
+        _loggingActive  = false;
+        _loggingStarted = false;
+        _trialStartTime = 0f;
+        _sessionMode    = "";
+        _promptEvents.Clear();
+        _totalHinderedTime = 0f;
+        _waterDecisions = "";
+        _saltDecisions  = "";
     }
 
     /// <summary>
-    /// Per-frame update of metrics while a trial is active.
+    /// Call every frame with the current progress value.
+    /// The first frame progress is &gt; 0, logging begins (one-shot).
     /// </summary>
-    public void Track(
-        float dt,
-        float burntAmount,
-        float saltAmount,
-        bool progressHold,
-        bool onStove,
-        bool stirring,
-        bool panGrabbed)
+    public void CheckProgressStart(float progress, string mode)
     {
-        if (!IsTrialActive) return;
+        if (_loggingStarted) return;          // already triggered — skip
+        if (progress <= 0f) return;           // still at zero — skip
 
-        // Block timers: burn/salt reaching 1.0 do NOT fail the trial; they only block progress growth.
-        bool waterBlocking = burntAmount >= 1f;
-        bool saltBlocking = saltAmount >= 1f;
-        if (waterBlocking) _waterBlockedTime += dt;
-        if (saltBlocking) _saltBlockedTime += dt;
-        if (waterBlocking || saltBlocking) _anyBlockedTime += dt;
+        _loggingStarted = true;
+        _loggingActive  = true;
+        _trialStartTime = Time.time;
+        _sessionMode    = mode;
+        _logDateTime    = DateTime.Now;
 
-        _peakBurnt = Mathf.Max(_peakBurnt, burntAmount);
-        _peakSalt = Mathf.Max(_peakSalt, saltAmount);
-
-        if (onStove) _onStoveTime += dt;
-        if (stirring) _stirringTime += dt;
-        if (panGrabbed) _panHeldTime += dt;
-        if (onStove && stirring && !progressHold) _cookingActiveTime += dt;
-
-        // Engagement transitions
-        if (panGrabbed && !_prevPanGrabbed) _panGrabCount++;
-        if (!panGrabbed && _prevPanGrabbed) _panDisengageCount++;
-        _prevPanGrabbed = panGrabbed;
-
-        // Episode termination by inactivity gap
-        if (_waterEpisodeOngoing && (Time.time - _lastWaterEffectTime) > interventionGapSeconds)
-        {
-            _waterEpisodeOngoing = false;
-        }
-        if (_saltEpisodeOngoing && (Time.time - _lastSaltEffectTime) > interventionGapSeconds)
-        {
-            _saltEpisodeOngoing = false;
-        }
+        Debug.Log("[ExpLogging] Logging started — progress rose above 0.");
     }
 
-    public void NotifyWaterEffect()
+    /// <summary>Record that a prompt of the given type was shown.</summary>
+    public void OnPromptShown(string type)
     {
-        if (!IsTrialActive) return;
-        _lastWaterEffectTime = Time.time;
-        if (!_waterEpisodeOngoing)
+        if (!_loggingActive) return;
+
+        _promptEvents.Add(new PromptEvent
         {
-            _waterEpisodeOngoing = true;
-            _waterEpisodes++;
-        }
+            type         = type,
+            shownTime    = Time.time - _trialStartTime,
+            reactionTime = -1f,
+            accepted     = false,
+            decided      = false
+        });
     }
 
-    public void NotifySaltEffect()
+    /// <summary>Record that the user accepted or denied a prompt.</summary>
+    public void OnPromptDecision(string type, bool accepted)
     {
-        if (!IsTrialActive) return;
-        _lastSaltEffectTime = Time.time;
-        if (!_saltEpisodeOngoing)
+        if (!_loggingActive) return;
+
+        // Find the most recent undecided prompt of this type
+        for (int i = _promptEvents.Count - 1; i >= 0; i--)
         {
-            _saltEpisodeOngoing = true;
-            _saltEpisodes++;
+            if (_promptEvents[i].type == type && !_promptEvents[i].decided)
+            {
+                var evt = _promptEvents[i];
+                evt.reactionTime = (Time.time - _trialStartTime) - evt.shownTime;
+                evt.accepted     = accepted;
+                evt.decided      = true;
+                _promptEvents[i] = evt;
+                break;
+            }
         }
+
+        // Append to per-item decision string
+        string bit = accepted ? "1" : "0";
+        if (type == "water") _waterDecisions += bit;
+        else if (type == "salt") _saltDecisions += bit;
     }
 
-    public void EndTrial(bool success, string endReason, float finalBurnt, float finalSalt, float finalProgress)
+    /// <summary>
+    /// Call every frame so the logger can accumulate hindered time.
+    /// <paramref name="hindered"/> should be true when progress is paused.
+    /// </summary>
+    public void TrackHinderedTime(float dt, bool hindered)
     {
-        if (!IsTrialActive) return;
-
-        _trialEndTime = Time.time;
-        IsTrialActive = false;
-
-        WriteTrialLogRow(success, endReason, finalBurnt, finalSalt, finalProgress);
+        if (!_loggingActive) return;
+        if (hindered) _totalHinderedTime += dt;
     }
 
-    private void WriteTrialLogRow(bool success, string endReason, float finalBurnt, float finalSalt, float finalProgress)
+    /// <summary>
+    /// Discard the current log without writing to disk.
+    /// Use when the trial is restarted or the application is quit early.
+    /// </summary>
+    public void DiscardLog()
+    {
+        _loggingActive = false;
+        _loggingStarted = false;
+        Debug.Log("[ExpLogging] Log discarded — no file written.");
+    }
+
+    /// <summary>
+    /// Finalize and write the log file.  Called when progress reaches 1
+    /// (or whenever you want to flush the current data).
+    /// </summary>
+    public void EndLogging()
+    {
+        if (!_loggingActive) return;
+        _loggingActive = false;
+
+        float totalDuration = Time.time - _trialStartTime;
+        WriteLogFile(totalDuration);
+    }
+
+    // ── file output ────────────────────────────────────────────────────
+
+    private void WriteLogFile(float totalDuration)
     {
         try
         {
-            string path = Path.Combine(Application.persistentDataPath, logFileName);
-            bool needsHeader = !File.Exists(path);
+            string folder = Path.Combine(Application.persistentDataPath, logFolder);
+            if (!Directory.Exists(folder))
+                Directory.CreateDirectory(folder);
 
-            var sb = new StringBuilder(512);
-            if (needsHeader)
+            // Auto-name: log-MM-dd-HH-mm.txt
+            string fileName = $"log-{_logDateTime:MM-dd-HH-mm}.txt";
+            string path = Path.Combine(folder, fileName);
+
+            var sb = new StringBuilder();
+
+            // 1. Metadata
+            sb.AppendLine("=== Experiment Log ===");
+            sb.AppendLine($"Mode: {_sessionMode}");
+            sb.AppendLine($"Date: {_logDateTime:yyyy-MM-dd HH:mm:ss}");
+            sb.AppendLine();
+
+            // 2. Total duration (progress 0 → 1)
+            sb.AppendLine($"Total Duration (progress 0 -> 1): {totalDuration:F3}s");
+            sb.AppendLine();
+
+            // 3. Prompt events array + total hindered time
+            sb.AppendLine("--- Prompt Events ---");
+            for (int i = 0; i < _promptEvents.Count; i++)
             {
-                sb.AppendLine(string.Join(",",
-                    "timestamp_iso",
-                    "participant_id",
-                    "session_type",
-                    "end_reason",
-                    "success",
-                    "trial_duration_s",
-                    "water_episodes",
-                    "salt_episodes",
-                    "water_blocked_s",
-                    "salt_blocked_s",
-                    "any_blocked_s",
-                    "on_stove_s",
-                    "stirring_s",
-                    "cooking_active_s",
-                    "pan_grab_count",
-                    "pan_disengage_count",
-                    "pan_held_s",
-                    "peak_burnt",
-                    "peak_salt",
-                    "final_burnt",
-                    "final_salt",
-                    "final_progress"
-                ));
+                var evt = _promptEvents[i];
+                string decision = evt.decided
+                    ? $"{(evt.accepted ? "ACCEPTED" : "DENIED")} | reaction: {evt.reactionTime:F3}s"
+                    : "NO DECISION";
+                sb.AppendLine($"  [{i}] {evt.type,-5} | shown: {evt.shownTime:F3}s | {decision}");
             }
+            sb.AppendLine();
+            sb.AppendLine($"Total Hindered Time: {_totalHinderedTime:F3}s");
+            sb.AppendLine();
 
-            double duration = Math.Max(0.0, _trialEndTime - _trialStartTime);
-            sb.AppendLine(string.Join(",",
-                Quote(DateTime.UtcNow.ToString("o")),
-                Quote(participantId),
-                Quote(sessionType.ToString()),
-                Quote(endReason),
-                success ? "1" : "0",
-                duration.ToString("F3"),
-                _waterEpisodes.ToString(),
-                _saltEpisodes.ToString(),
-                _waterBlockedTime.ToString("F3"),
-                _saltBlockedTime.ToString("F3"),
-                _anyBlockedTime.ToString("F3"),
-                _onStoveTime.ToString("F3"),
-                _stirringTime.ToString("F3"),
-                _cookingActiveTime.ToString("F3"),
-                _panGrabCount.ToString(),
-                _panDisengageCount.ToString(),
-                _panHeldTime.ToString("F3"),
-                _peakBurnt.ToString("F3"),
-                _peakSalt.ToString("F3"),
-                finalBurnt.ToString("F3"),
-                finalSalt.ToString("F3"),
-                finalProgress.ToString("F3")
-            ));
+            // 4. Water decisions
+            bool waterCorrect = _waterDecisions == WaterCorrect;
+            sb.AppendLine($"Water Decisions: {_waterDecisions} (Expected: {WaterCorrect}) -> {(waterCorrect ? "CORRECT" : "INCORRECT")}");
 
-            File.AppendAllText(path, sb.ToString());
-            Debug.Log($"[ExpLogging] Wrote trial log row to: {path}");
+            // 5. Salt decisions
+            bool saltCorrect = _saltDecisions == SaltCorrect;
+            sb.AppendLine($"Salt Decisions:  {_saltDecisions} (Expected: {SaltCorrect}) -> {(saltCorrect ? "CORRECT" : "INCORRECT")}");
+
+            File.WriteAllText(path, sb.ToString());
+            Debug.Log($"[ExpLogging] Log written to: {path}");
         }
         catch (Exception e)
         {
-            Debug.LogError($"[ExpLogging] Failed to write trial log: {e}");
+            Debug.LogError($"[ExpLogging] Failed to write log: {e}");
         }
-    }
-
-    private static string Quote(string s)
-    {
-        if (string.IsNullOrEmpty(s)) return "\"\"";
-        return "\"" + s.Replace("\"", "\"\"") + "\"";
     }
 }
 
