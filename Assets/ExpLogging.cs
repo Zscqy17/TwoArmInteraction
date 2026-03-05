@@ -41,8 +41,8 @@ public class ExpLogging : MonoBehaviour
     // ── per-item decision strings (0 = deny, 1 = accept) ──────────────
     private string _waterDecisions = "";
     private string _saltDecisions = "";
-    private const string WaterCorrect = "011";
-    private const string SaltCorrect  = "101";
+    private const string WaterCorrect = "0011";
+    private const string SaltCorrect  = "0101";
 
     // ── public API ─────────────────────────────────────────────────────
 
@@ -189,9 +189,9 @@ public class ExpLogging : MonoBehaviour
             {
                 var evt = _promptEvents[i];
                 string decision = evt.decided
-                    ? $"{(evt.accepted ? "ACCEPTED" : "DENIED")} | reaction: {evt.reactionTime:F3}s"
+                    ? $"{(evt.accepted ? "ACCEPTED" : "DENIED")} | decision time: {evt.reactionTime:F3}s"
                     : "NO DECISION";
-                sb.AppendLine($"  [{i}] {evt.type,-5} | shown: {evt.shownTime:F3}s | {decision}");
+                sb.AppendLine($"  [{i}] {evt.type,-5} | shown at: {evt.shownTime:F3}s | {decision}");
             }
             sb.AppendLine();
             sb.AppendLine($"Total Hindered Time: {_totalHinderedTime:F3}s");

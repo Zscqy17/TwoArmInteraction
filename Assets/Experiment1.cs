@@ -90,7 +90,6 @@ public class Experiment1 : MonoBehaviour
 
     [Header("Debug / Controls")]
     [SerializeField] private KeyCode restartSceneKey = KeyCode.R;
-    [SerializeField] private bool autoStartOnPlay = false;
 
     [Header("Logging")]
     [SerializeField] private ExpLogging logger;
@@ -105,16 +104,23 @@ public class Experiment1 : MonoBehaviour
         burntAmount = 0f;
         saltAmount = 0f;
         progressAmount = 0f;
-        if (autoStartOnPlay)
-        {
-            startExperiment();
-        }
         //Vector3 compensate = new Vector3(-armSysL.head.position.x, 0, -2.2f - armSysL.head.position.z);
         //VRsys.transform.position += compensate;
     }
 
     private void Update()
     {
+        // Start experiment with Enter key
+        if (!ongoing && Input.GetKeyUp(KeyCode.Return))
+        {
+            triggerSphere.GetComponent<MeshRenderer>().enabled = false;
+            triggerSphere.transform.GetChild(0).gameObject.SetActive(false);
+            //tutorial1.SetActive(false);
+            //tutorial2.SetActive(false);
+            //tutorial3.SetActive(false);
+            StartTrial();
+        }
+
         if (triggerSphere.SelectingPointsCount > 0)
         {
             // we've grabbed the trigger sphere

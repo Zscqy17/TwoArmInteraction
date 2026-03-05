@@ -6,7 +6,7 @@ using Oculus.Interaction.DistanceReticles;
 public enum InteractionMode
 {
     Auto,
-    Voice,
+    Button,
     Gesture,
     Proxy
 }
@@ -29,8 +29,11 @@ public class ProxyInteraction : MonoBehaviour
     [Header("Items – Proxy")]
     [SerializeField] private GameObject waterCup;
     private Grabbable waterCupGrab;
+    private MeshFilter waterCupMeshFilter;
     [SerializeField] private GameObject saltContainer;
     private Grabbable saltContainerGrab;
+    private MeshFilter saltContainerMeshFilter;
+    [SerializeField] private GameObject pan;
 
     [Header("Reticles")]
     [SerializeField] private ReticleMeshDrawer leftProxyInHand;
@@ -52,6 +55,7 @@ public class ProxyInteraction : MonoBehaviour
     [SerializeField] private Collider panArea;
     [SerializeField] private Collider waterDenyArea;
     [SerializeField] private Collider saltDenyArea;
+    [SerializeField] private Collider floorDenyArea;
 
     private Collider waterCupCollider;
     private Collider saltContainerCollider;
@@ -105,13 +109,19 @@ public class ProxyInteraction : MonoBehaviour
             waterCupCollider = waterCup.GetComponentInChildren<Collider>();
             waterCupStartPose = new Pose(waterCup.transform.position, waterCup.transform.rotation);
             waterCupGrab = waterCup.GetComponent<Grabbable>();
+            waterCupMeshFilter = waterCup.GetComponentInChildren<MeshFilter>();
         }
         if (saltContainer != null)
         {
             saltContainerCollider = saltContainer.GetComponentInChildren<Collider>();
             saltContainerStartPose = new Pose(saltContainer.transform.position, saltContainer.transform.rotation);
             saltContainerGrab = saltContainer.GetComponent<Grabbable>();
+            saltContainerMeshFilter = saltContainer.GetComponentInChildren<MeshFilter>();
         }
+
+        // Disable grabbables at start — they get enabled when a prompt is shown
+        SetGrabbableEnabled(waterCupGrab, false);
+        SetGrabbableEnabled(saltContainerGrab, false);
 
         waterTriggerThreshold = PickThreshold(waterThresholdIndex);
         saltTriggerThreshold = PickThreshold(saltThresholdIndex);
@@ -123,6 +133,7 @@ public class ProxyInteraction : MonoBehaviour
         SetItemVisible(saltContainer, false);
         SetItemVisible(waterGesture, false);
         SetItemVisible(saltGesture, false);
+        SetItemVisible(pan, false);
     }
 
     private void Update()
@@ -132,17 +143,84 @@ public class ProxyInteraction : MonoBehaviour
         checkForResets();
         CheckFallthrough();
         NotifyPromptState();
-        HandleVoiceKeys();
+        HandleButtonKeys();
         HandleAutoMode();
         SyncReticles();
     }
 
     private void SyncReticles()
     {
+        bool anyPrompt = waterPromptActive || saltPromptActive;
+        bool waterVisible = IsItemVisible(waterCup);
+        bool saltVisible = IsItemVisible(saltContainer);
+        bool waterGrabbed = waterCupGrab != null && waterCupGrab.SelectingPointsCount > 0;
+        bool saltGrabbed = saltContainerGrab != null && saltContainerGrab.SelectingPointsCount > 0;
+
+        // 1. Force-release grabs on items that are no longer visible
+        if (!waterVisible && waterGrabbed)
+            ForceReleaseGrab(waterCupGrab);
+        if (!saltVisible && saltGrabbed)
+            ForceReleaseGrab(saltContainerGrab);
+
+        // 2. Enable/disable Grabbable components based on prompt state
+        //    When no prompt is active and nothing is grabbed, disable grabbables.
+        //    When a prompt is shown, enable the relevant grabbable.
+        if (anyPrompt)
+        {
+            SetGrabbableEnabled(waterCupGrab, waterPromptActive);
+            SetGrabbableEnabled(saltContainerGrab, saltPromptActive);
+        }
+        else
+        {
+            // No prompt — disable both (only if not currently grabbed, to avoid mid-grab disable)
+            if (!waterGrabbed) SetGrabbableEnabled(waterCupGrab, false);
+            if (!saltGrabbed) SetGrabbableEnabled(saltContainerGrab, false);
+        }
+
+        // 3. Reticle drawers: only enabled in Proxy mode when a prompt is active
+        bool showReticles = mode == InteractionMode.Proxy && anyPrompt;
         if (leftProxyInHand != null)
-            leftProxyInHand.enabled = IsItemVisible(waterCup) || IsItemVisible(saltContainer);
+            leftProxyInHand.enabled = showReticles;
         if (rightProxyInHand != null)
-            rightProxyInHand.enabled = IsItemVisible(waterCup) || IsItemVisible(saltContainer);
+            rightProxyInHand.enabled = showReticles;
+
+        // 4. Validate reticle mesh matches a currently visible proxy item
+        ValidateReticleMesh(leftProxyInHand, waterVisible, saltVisible);
+        ValidateReticleMesh(rightProxyInHand, waterVisible, saltVisible);
+
+        // 5. Pan proxy: visible only in Proxy mode when water or salt proxy is grabbed
+        bool showPan = mode == InteractionMode.Proxy && (waterGrabbed || saltGrabbed) && anyPrompt;
+        SetItemVisible(pan, showPan);
+    }
+
+    /// <summary>
+    /// If the ReticleMeshDrawer is enabled and its MeshFilter has a non-null mesh,
+    /// verify that mesh belongs to one of the currently visible proxy items.
+    /// If it doesn't match, clear the mesh to prevent stale outlines.
+    /// </summary>
+    private void ValidateReticleMesh(ReticleMeshDrawer drawer, bool waterVisible, bool saltVisible)
+    {
+        if (drawer == null || !drawer.enabled) return;
+
+        var reticleFilter = drawer.GetComponent<MeshFilter>();
+        if (reticleFilter == null || reticleFilter.sharedMesh == null) return;
+
+        Mesh currentMesh = reticleFilter.sharedMesh;
+
+        // Check if it matches any currently visible proxy item's mesh
+        bool meshMatchesVisible = false;
+        if (waterVisible && waterCupMeshFilter != null && waterCupMeshFilter.sharedMesh == currentMesh)
+            meshMatchesVisible = true;
+        if (saltVisible && saltContainerMeshFilter != null && saltContainerMeshFilter.sharedMesh == currentMesh)
+            meshMatchesVisible = true;
+
+        if (!meshMatchesVisible)
+            reticleFilter.sharedMesh = null;
+    }
+
+    private static void SetGrabbableEnabled(Grabbable grab, bool enabled)
+    {
+        if (grab != null) grab.enabled = enabled;
     }
 
     private void HandleAutoMode()
@@ -188,9 +266,9 @@ public class ProxyInteraction : MonoBehaviour
         }
     }
 
-    private void HandleVoiceKeys()
+    private void HandleButtonKeys()
     {
-        if (mode != InteractionMode.Voice) return;
+        if (mode != InteractionMode.Button) return;
 
         if (Input.GetKeyUp(KeyCode.Q) && waterPromptActive)
         {
@@ -311,8 +389,7 @@ public class ProxyInteraction : MonoBehaviour
         bool waterGrabbed = waterCupGrab != null && waterCupGrab.SelectingPointsCount > 0;
         if (waterCupCollider != null && IsItemVisible(waterCup) && waterGrabbed)
         {
-            bool inPan = IsOverlapping(waterCupCollider, panArea)
-                      && IsNearHand(waterCup.transform);
+            bool inPan = IsOverlapping(waterCupCollider, panArea) && IsNearHand(waterCup.transform);
             if (inPan && !waterInPan)
             {
                 waterInPan = true;
@@ -324,7 +401,7 @@ public class ProxyInteraction : MonoBehaviour
             }
 
             bool inDeny = IsOverlapping(waterCupCollider, waterDenyArea) || IsOverlapping(waterCupCollider, saltDenyArea)
-                       || waterCup.transform.position.y < 0.3f;
+                       || IsOverlapping(waterCupCollider, floorDenyArea);
             if (inDeny && !waterInDeny)
             {
                 waterInDeny = true;
@@ -344,8 +421,7 @@ public class ProxyInteraction : MonoBehaviour
         bool saltGrabbed = saltContainerGrab != null && saltContainerGrab.SelectingPointsCount > 0;
         if (saltContainerCollider != null && IsItemVisible(saltContainer) && saltGrabbed)
         {
-            bool inPan = IsOverlapping(saltContainerCollider, panArea)
-                      && IsNearHand(saltContainer.transform);
+            bool inPan = IsOverlapping(saltContainerCollider, panArea) && IsNearHand(saltContainer.transform);
             if (inPan && !saltInPan)
             {
                 saltInPan = true;
@@ -357,7 +433,7 @@ public class ProxyInteraction : MonoBehaviour
             }
 
             bool inDeny = IsOverlapping(saltContainerCollider, saltDenyArea) || IsOverlapping(saltContainerCollider, waterDenyArea)
-                       || saltContainer.transform.position.y < 0.3f;
+                       || IsOverlapping(saltContainerCollider, floorDenyArea);
             if (inDeny && !saltInDeny)
             {
                 saltInDeny = true;
@@ -434,7 +510,7 @@ public class ProxyInteraction : MonoBehaviour
         if (experiment != null) experiment.LogPromptDecision("water", false);
         waterPromptActive = false;
         SetItemVisible(waterNotifyCanvas, false);
-        //ForceReleaseGrab(waterCupGrab);
+        ForceReleaseGrab(waterCupGrab);
         waterToReset = true;
         SetChildrenActive(waterCup, true);
         SetItemVisible(waterCup, false);
@@ -446,7 +522,7 @@ public class ProxyInteraction : MonoBehaviour
         if (experiment != null) experiment.LogPromptDecision("salt", false);
         saltPromptActive = false;
         SetItemVisible(saltNotifyCanvas, false);
-        //ForceReleaseGrab(saltContainerGrab);
+        ForceReleaseGrab(saltContainerGrab);
         saltToReset = true;
         SetChildrenActive(saltContainer, true);
         SetItemVisible(saltContainer, false);
@@ -567,6 +643,16 @@ public class ProxyInteraction : MonoBehaviour
         if (saltContainer != null && saltContainer.transform.position.y < 0f)
         {
             saltContainer.transform.SetPositionAndRotation(saltContainerStartPose.position, saltContainerStartPose.rotation);
+        }
+
+        // Deny items that land on the floor deny area
+        if (waterCupCollider != null && IsItemVisible(waterCup) && IsOverlapping(waterCupCollider, floorDenyArea))
+        {
+            OnWaterDenied();
+        }
+        if (saltContainerCollider != null && IsItemVisible(saltContainer) && IsOverlapping(saltContainerCollider, floorDenyArea))
+        {
+            OnSaltDenied();
         }
     }
 
