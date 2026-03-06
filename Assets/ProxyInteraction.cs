@@ -50,6 +50,7 @@ public class ProxyInteraction : MonoBehaviour
 
     [Header("Gaze")]
     [SerializeField] private ConicalFrustum gazeFrustum;
+    [SerializeField] private float gazeGestureAngle = 30f;
 
     [Header("Areas")]
     [SerializeField] private Collider panArea;
@@ -102,6 +103,11 @@ public class ProxyInteraction : MonoBehaviour
     [Header("Auto Mode")]
     [SerializeField] private float autoResponseDelay = 0.1f;
 
+    // Tutorial state
+    private bool tutorialActive = false;
+    private float waterTutorialReshowTime = -1f;
+    private float saltTutorialReshowTime = -1f;
+
     private void Awake()
     {
         if (waterCup != null)
@@ -136,12 +142,74 @@ public class ProxyInteraction : MonoBehaviour
         SetItemVisible(pan, false);
     }
 
+    private void Start()
+    {
+        if (mode == InteractionMode.Auto) return;
+        tutorialActive = true;
+        RevealWaterIfHidden(fromFull: false);
+        RevealSaltIfHidden(fromFull: false);
+    }
+
+    private void UpdateTutorial()
+    {
+        if (!tutorialActive) return;
+
+        // End tutorial when formal experiment starts
+        if (experiment == null || !experiment.IsTutorialMode)
+        {
+            EndTutorial();
+            return;
+        }
+
+        // Re-show prompts after their cooldown
+        if (!waterPromptActive && waterTutorialReshowTime >= 0f && Time.time >= waterTutorialReshowTime)
+        {
+            waterTutorialReshowTime = -1f;
+            RevealWaterIfHidden(fromFull: false);
+        }
+        if (!saltPromptActive && saltTutorialReshowTime >= 0f && Time.time >= saltTutorialReshowTime)
+        {
+            saltTutorialReshowTime = -1f;
+            RevealSaltIfHidden(fromFull: false);
+        }
+    }
+
+    private void EndTutorial()
+    {
+        tutorialActive = false;
+        waterTutorialReshowTime = -1f;
+        saltTutorialReshowTime = -1f;
+
+        if (waterPromptActive)
+        {
+            waterPromptActive = false;
+            SetItemVisible(waterNotifyCanvas, false);
+            ForceReleaseGrab(waterCupGrab);
+            SetChildrenActive(waterCup, true);
+            SetItemVisible(waterCup, false);
+            SetItemVisible(waterGesture, false);
+        }
+        if (saltPromptActive)
+        {
+            saltPromptActive = false;
+            SetItemVisible(saltNotifyCanvas, false);
+            ForceReleaseGrab(saltContainerGrab);
+            SetChildrenActive(saltContainer, true);
+            SetItemVisible(saltContainer, false);
+            SetItemVisible(saltGesture, false);
+        }
+        SetItemVisible(pan, false);
+    }
+
     private void Update()
     {
-        UpdatePromptVisibility();
+        UpdateTutorial();
+        if (!tutorialActive)
+            UpdatePromptVisibility();
         CheckOverlapTransitions();
         checkForResets();
         CheckFallthrough();
+        UpdateGestureVisibility();
         NotifyPromptState();
         HandleButtonKeys();
         HandleAutoMode();
@@ -333,7 +401,7 @@ public class ProxyInteraction : MonoBehaviour
                     }
                     else if (mode == InteractionMode.Gesture)
                     {
-                        SetItemVisible(waterGesture, true);
+                        // Gesture visibility is driven by gaze in UpdateGestureVisibility()
                         SetItemVisible(waterCup, true);
                         TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
                         SetChildrenActive(waterCup, false);
@@ -368,7 +436,7 @@ public class ProxyInteraction : MonoBehaviour
                     }
                     else if (mode == InteractionMode.Gesture)
                     {
-                        SetItemVisible(saltGesture, true);
+                        // Gesture visibility is driven by gaze in UpdateGestureVisibility()
                         SetItemVisible(saltContainer, true);
                         TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
                         SetChildrenActive(saltContainer, false);
@@ -480,9 +548,17 @@ public class ProxyInteraction : MonoBehaviour
         SetItemVisible(waterCup, false);
         SetItemVisible(waterGesture, false);
 
-        // Auto-deny the other prompt unless it was triggered by full meter
-        if (saltPromptActive && !saltFromFull)
-            OnSaltDenied();
+        if (tutorialActive)
+        {
+            float duration = experiment != null ? experiment.WaterOneShotDuration : 3f;
+            waterTutorialReshowTime = Time.time + Mathf.Max(0.01f, duration);
+        }
+        else
+        {
+            // Auto-deny the other prompt unless it was triggered by full meter
+            if (saltPromptActive && !saltFromFull)
+                OnSaltDenied();
+        }
     }
 
     private void OnSaltAccepted()
@@ -500,9 +576,17 @@ public class ProxyInteraction : MonoBehaviour
         SetItemVisible(saltContainer, false);
         SetItemVisible(saltGesture, false);
 
-        // Auto-deny the other prompt unless it was triggered by full meter
-        if (waterPromptActive && !waterFromFull)
-            OnWaterDenied();
+        if (tutorialActive)
+        {
+            float duration = experiment != null ? experiment.SaltOneShotDuration : 3f;
+            saltTutorialReshowTime = Time.time + Mathf.Max(0.01f, duration);
+        }
+        else
+        {
+            // Auto-deny the other prompt unless it was triggered by full meter
+            if (waterPromptActive && !waterFromFull)
+                OnWaterDenied();
+        }
     }
 
     private void OnWaterDenied()
@@ -515,6 +599,11 @@ public class ProxyInteraction : MonoBehaviour
         SetChildrenActive(waterCup, true);
         SetItemVisible(waterCup, false);
         SetItemVisible(waterGesture, false);
+
+        if (tutorialActive)
+        {
+            waterTutorialReshowTime = Time.time + 3f;
+        }
     }
 
     private void OnSaltDenied()
@@ -527,6 +616,11 @@ public class ProxyInteraction : MonoBehaviour
         SetChildrenActive(saltContainer, true);
         SetItemVisible(saltContainer, false);
         SetItemVisible(saltGesture, false);
+
+        if (tutorialActive)
+        {
+            saltTutorialReshowTime = Time.time + 3f;
+        }
     }
 
     private void RevealSaltIfHidden(bool fromFull = false)
@@ -545,7 +639,7 @@ public class ProxyInteraction : MonoBehaviour
             }
             else if (mode == InteractionMode.Gesture)
             {
-                SetItemVisible(saltGesture, true);
+                // Gesture visibility is driven by gaze in UpdateGestureVisibility()
                 SetItemVisible(saltContainer, true);
                 TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
                 SetChildrenActive(saltContainer, false);
@@ -574,7 +668,7 @@ public class ProxyInteraction : MonoBehaviour
             }
             else if (mode == InteractionMode.Gesture)
             {
-                SetItemVisible(waterGesture, true);
+                // Gesture visibility is driven by gaze in UpdateGestureVisibility()
                 SetItemVisible(waterCup, true);
                 TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
                 SetChildrenActive(waterCup, false);
@@ -633,6 +727,36 @@ public class ProxyInteraction : MonoBehaviour
             rb.angularVelocity = Vector3.zero;
         }
     }
+    private void UpdateGestureVisibility()
+    {
+        if (mode != InteractionMode.Gesture) return;
+
+        bool showWaterGesture = false;
+        bool showSaltGesture = false;
+
+        if (waterPromptActive && saltPromptActive)
+        {
+            // Both active — show gesture for whichever the user is gazing at
+            float waterAngle = GazeAngleTo(waterNotifyCanvas);
+            float saltAngle = GazeAngleTo(saltNotifyCanvas);
+            if (waterAngle <= saltAngle && waterAngle <= gazeGestureAngle)
+                showWaterGesture = true;
+            else if (saltAngle < waterAngle && saltAngle <= gazeGestureAngle)
+                showSaltGesture = true;
+        }
+        else if (waterPromptActive)
+        {
+            showWaterGesture = GazeAngleTo(waterNotifyCanvas) <= gazeGestureAngle;
+        }
+        else if (saltPromptActive)
+        {
+            showSaltGesture = GazeAngleTo(saltNotifyCanvas) <= gazeGestureAngle;
+        }
+
+        SetItemVisible(waterGesture, showWaterGesture);
+        SetItemVisible(saltGesture, showSaltGesture);
+    }
+
     private void NotifyPromptState()
     {
         if (experiment != null)

@@ -46,6 +46,10 @@ public class Experiment1 : MonoBehaviour
     float burntAmount, saltAmount, progressAmount;
     bool foodDone, ongoing, grabflag, progressHold;
     private bool promptPause;
+    private bool tutorialMode = true;
+    public bool IsTutorialMode => tutorialMode;
+    public float WaterOneShotDuration => waterOneShotClip != null ? waterOneShotClip.length : 0f;
+    public float SaltOneShotDuration => saltOneShotClip != null ? saltOneShotClip.length : 0f;
 
     Color warningColor = new Color(1f, 0.6f, 0.6f);
 
@@ -317,6 +321,21 @@ public class Experiment1 : MonoBehaviour
 
     private void StartTrial()
     {
+        tutorialMode = false;
+
+        // Clean up any running one-shot animations from tutorial
+        if (pendingWaterOneShot)
+        {
+            if (ExpMug != null) ExpMug.Takeback();
+            if (ExpFaucet != null) ExpFaucet.Takeback();
+            SetLeftArmAutomation(false);
+        }
+        if (pendingSaltOneShot)
+        {
+            if (ExpSalt != null) ExpSalt.Takeback();
+            SetRightArmAutomation(false);
+        }
+
         // Reset trial state
         foodDone = false;
         ongoing = true;
