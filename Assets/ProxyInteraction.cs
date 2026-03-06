@@ -189,7 +189,7 @@ public class ProxyInteraction : MonoBehaviour
         ValidateReticleMesh(rightProxyInHand, waterVisible, saltVisible);
 
         // 5. Pan proxy: visible only in Proxy mode when water or salt proxy is grabbed
-        bool showPan = mode == InteractionMode.Proxy && (waterGrabbed || saltGrabbed) && anyPrompt;
+        bool showPan = mode == InteractionMode.Proxy && anyPrompt;
         SetItemVisible(pan, showPan);
     }
 
@@ -603,13 +603,13 @@ public class ProxyInteraction : MonoBehaviour
     private static void ForceReleaseGrab(Grabbable grabbable)
     {
         if (grabbable == null) return;
-        int safety = 20;
-        while (grabbable.SelectingPointsCount > 0 && safety-- > 0)
-        {
-            var points = grabbable.SelectingPoints;
-            grabbable.ProcessPointerEvent(
-                new PointerEvent(0, PointerEventType.Cancel, points[0]));
-        }
+        if (grabbable.SelectingPointsCount == 0) return;
+
+        // Disable then re-enable the Grabbable so the SDK cleanly
+        // unselects all pointers without double-removing from
+        // ThrowWhenUnselected's internal selector list.
+        grabbable.enabled = false;
+        grabbable.enabled = true;
     }
 
     private static bool IsItemVisible(GameObject obj)
@@ -624,8 +624,15 @@ public class ProxyInteraction : MonoBehaviour
         if (obj == null) return;
         if (grab != null && grab.SelectingPointsCount > 0) return;
         obj.transform.SetPositionAndRotation(pose.position, pose.rotation);
-    }
 
+        // Zero out velocity so the item doesn't keep falling after reset
+        var rb = obj.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
+    }
     private void NotifyPromptState()
     {
         if (experiment != null)
@@ -639,10 +646,12 @@ public class ProxyInteraction : MonoBehaviour
         if (waterCup != null && waterCup.transform.position.y < 0f)
         {
             waterCup.transform.SetPositionAndRotation(waterCupStartPose.position, waterCupStartPose.rotation);
+            ZeroVelocity(waterCup);
         }
         if (saltContainer != null && saltContainer.transform.position.y < 0f)
         {
             saltContainer.transform.SetPositionAndRotation(saltContainerStartPose.position, saltContainerStartPose.rotation);
+            ZeroVelocity(saltContainer);
         }
 
         // Deny items that land on the floor deny area
@@ -660,6 +669,17 @@ public class ProxyInteraction : MonoBehaviour
     {
         if (item == null || area == null) return false;
         return item.bounds.Intersects(area.bounds);
+    }
+
+    private static void ZeroVelocity(GameObject obj)
+    {
+        if (obj == null) return;
+        var rb = obj.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
     }
 
     private bool IsNearHand(Transform item)
