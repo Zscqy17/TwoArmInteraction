@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 using Oculus.Interaction;
@@ -8,7 +9,8 @@ public enum InteractionMode
     Auto,
     Button,
     Gesture,
-    Proxy
+    Proxy,
+    ProxyMenu
 }
 
 public class ProxyInteraction : MonoBehaviour
@@ -38,6 +40,13 @@ public class ProxyInteraction : MonoBehaviour
     [Header("Reticles")]
     [SerializeField] private ReticleMeshDrawer leftProxyInHand;
     [SerializeField] private ReticleMeshDrawer rightProxyInHand;
+
+    [Header("Proxy Menu Mode")]
+    [SerializeField] private ProxyMenu proxyMenu;
+    [SerializeField] private Color menuApplyColor = new Color(0.3f, 0.85f, 0.4f);
+    [SerializeField] private Color menuDiscardColor = new Color(0.9f, 0.35f, 0.3f);
+    private bool waterMenuGrabbed;
+    private bool saltMenuGrabbed;
 
     [Header("Items – Gesture")]
     [SerializeField] private GameObject waterGesture;
@@ -140,6 +149,29 @@ public class ProxyInteraction : MonoBehaviour
         SetItemVisible(waterGesture, false);
         SetItemVisible(saltGesture, false);
         SetItemVisible(pan, false);
+
+        SetupProxyMenu();
+    }
+
+    private void SetupProxyMenu()
+    {
+        if (proxyMenu == null) return;
+
+        proxyMenu.SetHand(rightHand != null ? rightHand : leftHand);
+        if (Camera.main != null) proxyMenu.SetHead(Camera.main.transform);
+
+        if (waterCup != null)
+        {
+            proxyMenu.RegisterItem(new ProxyMenuItem { id = "water", nameTag = "Water", layer = 1, visual = waterCup.transform });
+            proxyMenu.AddAction("water", "apply", "Apply", menuApplyColor);
+            proxyMenu.AddAction("water", "discard", "Discard", menuDiscardColor);
+        }
+        if (saltContainer != null)
+        {
+            proxyMenu.RegisterItem(new ProxyMenuItem { id = "salt", nameTag = "Salt", layer = 1, visual = saltContainer.transform });
+            proxyMenu.AddAction("salt", "apply", "Apply", menuApplyColor);
+            proxyMenu.AddAction("salt", "discard", "Discard", menuDiscardColor);
+        }
     }
 
     private void Start()
@@ -183,6 +215,7 @@ public class ProxyInteraction : MonoBehaviour
         if (waterPromptActive)
         {
             waterPromptActive = false;
+            if (mode == InteractionMode.ProxyMenu && proxyMenu != null) proxyMenu.SetItemActive("water", false);
             SetItemVisible(waterNotifyCanvas, false);
             ForceReleaseGrab(waterCupGrab);
             SetChildrenActive(waterCup, true);
@@ -192,6 +225,7 @@ public class ProxyInteraction : MonoBehaviour
         if (saltPromptActive)
         {
             saltPromptActive = false;
+            if (mode == InteractionMode.ProxyMenu && proxyMenu != null) proxyMenu.SetItemActive("salt", false);
             SetItemVisible(saltNotifyCanvas, false);
             ForceReleaseGrab(saltContainerGrab);
             SetChildrenActive(saltContainer, true);
@@ -213,7 +247,53 @@ public class ProxyInteraction : MonoBehaviour
         NotifyPromptState();
         HandleButtonKeys();
         HandleAutoMode();
+        UpdateProxyMenuMode();
         SyncReticles();
+    }
+
+    private void UpdateProxyMenuMode()
+    {
+        if (mode != InteractionMode.ProxyMenu || proxyMenu == null) return;
+
+        UpdateMenuItem("water", waterCupGrab, waterCupCollider, waterPromptActive, ref waterMenuGrabbed);
+        UpdateMenuItem("salt", saltContainerGrab, saltContainerCollider, saltPromptActive, ref saltMenuGrabbed);
+    }
+
+    private void UpdateMenuItem(string id, Grabbable grab, Collider itemCollider, bool promptActive, ref bool wasGrabbed)
+    {
+        bool grabbed = promptActive && grab != null && grab.SelectingPointsCount > 0;
+
+        if (grabbed && !wasGrabbed) proxyMenu.NotifyGrabbed(id);
+        else if (!grabbed && wasGrabbed) proxyMenu.NotifyReleased(id);
+        wasGrabbed = grabbed;
+
+        // While held, committing happens by bringing the item onto an Apply/Discard marker.
+        if (grabbed && proxyMenu.GrabbedItemId == id && itemCollider != null)
+        {
+            IReadOnlyList<ProxyMenuActionMarker> actions = proxyMenu.CurrentActions;
+            for (int i = 0; i < actions.Count; i++)
+            {
+                ProxyMenuActionMarker marker = actions[i];
+                if (marker.collider != null && IsOverlapping(itemCollider, marker.collider))
+                {
+                    CommitMenuAction(id, marker.actionId);
+                    break;
+                }
+            }
+        }
+    }
+
+    private void CommitMenuAction(string id, string actionId)
+    {
+        bool apply = actionId == "apply";
+        if (id == "water")
+        {
+            if (apply) OnWaterAccepted(); else OnWaterDenied();
+        }
+        else if (id == "salt")
+        {
+            if (apply) OnSaltAccepted(); else OnSaltDenied();
+        }
     }
 
     private void SyncReticles()
@@ -406,6 +486,13 @@ public class ProxyInteraction : MonoBehaviour
                         TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
                         SetChildrenActive(waterCup, false);
                     }
+                    else if (mode == InteractionMode.ProxyMenu)
+                    {
+                        SetItemVisible(waterCup, true);
+                        TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
+                        SetItemVisible(waterGesture, false);
+                        if (proxyMenu != null) proxyMenu.SetItemActive("water", true);
+                    }
                     else
                     {
                         SetItemVisible(waterCup, false);
@@ -440,6 +527,13 @@ public class ProxyInteraction : MonoBehaviour
                         SetItemVisible(saltContainer, true);
                         TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
                         SetChildrenActive(saltContainer, false);
+                    }
+                    else if (mode == InteractionMode.ProxyMenu)
+                    {
+                        SetItemVisible(saltContainer, true);
+                        TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
+                        SetItemVisible(saltGesture, false);
+                        if (proxyMenu != null) proxyMenu.SetItemActive("salt", true);
                     }
                     else
                     {
@@ -541,6 +635,7 @@ public class ProxyInteraction : MonoBehaviour
             experiment.TriggerWaterOneShot();
         }
         waterPromptActive = false;
+        if (mode == InteractionMode.ProxyMenu && proxyMenu != null) proxyMenu.SetItemActive("water", false);
         SetItemVisible(waterNotifyCanvas, false);
         ForceReleaseGrab(waterCupGrab);
         waterToReset = true;
@@ -569,6 +664,7 @@ public class ProxyInteraction : MonoBehaviour
             experiment.TriggerSaltOneShot();
         }
         saltPromptActive = false;
+        if (mode == InteractionMode.ProxyMenu && proxyMenu != null) proxyMenu.SetItemActive("salt", false);
         SetItemVisible(saltNotifyCanvas, false);
         ForceReleaseGrab(saltContainerGrab);
         saltToReset = true;
@@ -593,6 +689,7 @@ public class ProxyInteraction : MonoBehaviour
     {
         if (experiment != null) experiment.LogPromptDecision("water", false);
         waterPromptActive = false;
+        if (mode == InteractionMode.ProxyMenu && proxyMenu != null) proxyMenu.SetItemActive("water", false);
         SetItemVisible(waterNotifyCanvas, false);
         ForceReleaseGrab(waterCupGrab);
         waterToReset = true;
@@ -610,6 +707,7 @@ public class ProxyInteraction : MonoBehaviour
     {
         if (experiment != null) experiment.LogPromptDecision("salt", false);
         saltPromptActive = false;
+        if (mode == InteractionMode.ProxyMenu && proxyMenu != null) proxyMenu.SetItemActive("salt", false);
         SetItemVisible(saltNotifyCanvas, false);
         ForceReleaseGrab(saltContainerGrab);
         saltToReset = true;
@@ -644,6 +742,13 @@ public class ProxyInteraction : MonoBehaviour
                 TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
                 SetChildrenActive(saltContainer, false);
             }
+            else if (mode == InteractionMode.ProxyMenu)
+            {
+                SetItemVisible(saltContainer, true);
+                TryResetIfFree(saltContainer, saltContainerStartPose, saltContainerGrab);
+                SetItemVisible(saltGesture, false);
+                if (proxyMenu != null) proxyMenu.SetItemActive("salt", true);
+            }
             else
             {
                 SetItemVisible(saltContainer, false);
@@ -672,6 +777,13 @@ public class ProxyInteraction : MonoBehaviour
                 SetItemVisible(waterCup, true);
                 TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
                 SetChildrenActive(waterCup, false);
+            }
+            else if (mode == InteractionMode.ProxyMenu)
+            {
+                SetItemVisible(waterCup, true);
+                TryResetIfFree(waterCup, waterCupStartPose, waterCupGrab);
+                SetItemVisible(waterGesture, false);
+                if (proxyMenu != null) proxyMenu.SetItemActive("water", true);
             }
             else
             {

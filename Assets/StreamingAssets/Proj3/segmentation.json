@@ -1,0 +1,40 @@
+{
+  "items": [
+    {
+      "id": "knife",
+      "label": "Knife",
+      "x": 0.24,
+      "y": 0.66,
+      "width": 0.50,
+      "height": 0.16,
+      "relatedItemIds": ["apple"]
+    },
+    {
+      "id": "apple",
+      "label": "Apple",
+      "x": 0.08,
+      "y": 0.18,
+      "width": 0.28,
+      "height": 0.34,
+      "relatedItemIds": ["knife", "bottle"]
+    },
+    {
+      "id": "bottle",
+      "label": "Bottle",
+      "x": 0.42,
+      "y": 0.14,
+      "width": 0.22,
+      "height": 0.42,
+      "relatedItemIds": ["cup", "apple"]
+    },
+    {
+      "id": "cup",
+      "label": "Cup",
+      "x": 0.68,
+      "y": 0.32,
+      "width": 0.22,
+      "height": 0.28,
+      "relatedItemIds": ["bottle"]
+    }
+  ]
+}
