@@ -18,13 +18,19 @@ namespace Proj3
         public string label;
         public Rect normalizedBounds;
         public Color tint = Color.white;
+        public float confidence = 1f;
+        public string cropPath;
+        public string maskPath;
         public string[] relatedItemIds = Array.Empty<string>();
     }
 
     [Serializable]
     public class SegmentationFile
     {
+        public string sceneId;
+        public string imagePath;
         public SegmentationFileItem[] items = Array.Empty<SegmentationFileItem>();
+        public InteractionEdgeData[] interactions = Array.Empty<InteractionEdgeData>();
     }
 
     [Serializable]
@@ -32,11 +38,38 @@ namespace Proj3
     {
         public string id;
         public string label;
+        public NormalizedBounds bounds;
         public float x;
         public float y;
         public float width;
         public float height;
+        public float confidence = 1f;
+        public string cropPath;
+        public string maskPath;
         public string[] relatedItemIds = Array.Empty<string>();
+    }
+
+    [Serializable]
+    public class NormalizedBounds
+    {
+        public float x;
+        public float y;
+        public float width;
+        public float height;
+
+        public Rect ToRect()
+        {
+            return new Rect(x, y, width, height);
+        }
+    }
+
+    [Serializable]
+    public class InteractionEdgeData
+    {
+        public string sourceId;
+        public string targetId;
+        public string action;
+        public string instruction;
     }
 
     public class StaticImageSource : MonoBehaviour, IImageSource
@@ -120,6 +153,9 @@ namespace Proj3
         [SerializeField] private TextAsset manualSegmentationJson;
         [SerializeField] private string streamingAssetsJsonPath = "Proj3/segmentation.json";
 
+        private readonly List<InteractionEdgeData> lastInteractions = new List<InteractionEdgeData>();
+        public IReadOnlyList<InteractionEdgeData> LastInteractions => lastInteractions;
+
         public List<SegmentedItemData> Segment(Texture2D image)
         {
             List<SegmentedItemData> manualItems = TryLoadManualSegmentation();
@@ -128,6 +164,7 @@ namespace Proj3
                 return manualItems;
             }
 
+            lastInteractions.Clear();
             return CreateMockItems(image);
         }
 
@@ -155,15 +192,27 @@ namespace Proj3
                 return items;
             }
 
+            lastInteractions.Clear();
+            if (file.interactions != null)
+            {
+                lastInteractions.AddRange(file.interactions);
+            }
+
             for (int i = 0; i < file.items.Length; i++)
             {
                 SegmentationFileItem source = file.items[i];
+                Rect bounds = source.bounds != null
+                    ? source.bounds.ToRect()
+                    : new Rect(source.x, source.y, source.width, source.height);
                 items.Add(new SegmentedItemData
                 {
                     id = string.IsNullOrWhiteSpace(source.id) ? "item-" + i : source.id,
                     label = string.IsNullOrWhiteSpace(source.label) ? "Item " + (i + 1) : source.label,
-                    normalizedBounds = ClampRect(new Rect(source.x, source.y, source.width, source.height)),
+                    normalizedBounds = ClampRect(bounds),
                     tint = Color.HSVToRGB((i * 0.17f) % 1f, 0.65f, 1f),
+                    confidence = source.confidence,
+                    cropPath = source.cropPath,
+                    maskPath = source.maskPath,
                     relatedItemIds = source.relatedItemIds ?? Array.Empty<string>()
                 });
             }
@@ -181,6 +230,7 @@ namespace Proj3
                     label = "Knife",
                     normalizedBounds = new Rect(0.24f, 0.66f, 0.5f, 0.16f),
                     tint = new Color(0.45f, 0.68f, 1f),
+                    confidence = 1f,
                     relatedItemIds = new[] { "apple" }
                 },
                 new SegmentedItemData
@@ -189,6 +239,7 @@ namespace Proj3
                     label = "Apple",
                     normalizedBounds = new Rect(0.08f, 0.18f, 0.28f, 0.34f),
                     tint = new Color(1f, 0.35f, 0.32f),
+                    confidence = 1f,
                     relatedItemIds = new[] { "knife", "bottle" }
                 },
                 new SegmentedItemData
@@ -197,6 +248,7 @@ namespace Proj3
                     label = "Bottle",
                     normalizedBounds = new Rect(0.42f, 0.14f, 0.22f, 0.42f),
                     tint = new Color(0.35f, 0.95f, 0.45f),
+                    confidence = 1f,
                     relatedItemIds = new[] { "cup", "apple" }
                 },
                 new SegmentedItemData
@@ -205,6 +257,7 @@ namespace Proj3
                     label = "Cup",
                     normalizedBounds = new Rect(0.68f, 0.32f, 0.22f, 0.28f),
                     tint = new Color(1f, 0.82f, 0.25f),
+                    confidence = 1f,
                     relatedItemIds = new[] { "bottle" }
                 }
             };
@@ -224,17 +277,27 @@ namespace Proj3
     {
         private readonly Dictionary<string, HashSet<string>> relatedIds = new Dictionary<string, HashSet<string>>();
         private readonly Dictionary<string, string> labelsById = new Dictionary<string, string>();
+        private readonly Dictionary<string, InteractionEdgeData> edgesByPair = new Dictionary<string, InteractionEdgeData>();
 
-        public void Build(IReadOnlyList<SegmentedItemData> items)
+        public void Build(IReadOnlyList<SegmentedItemData> items, IReadOnlyList<InteractionEdgeData> interactions = null)
         {
             relatedIds.Clear();
             labelsById.Clear();
+            edgesByPair.Clear();
 
             for (int i = 0; i < items.Count; i++)
             {
                 SegmentedItemData item = items[i];
                 relatedIds[item.id] = new HashSet<string>();
                 labelsById[item.id] = item.label;
+            }
+
+            if (interactions != null)
+            {
+                for (int i = 0; i < interactions.Count; i++)
+                {
+                    AddInteraction(interactions[i]);
+                }
             }
 
             for (int i = 0; i < items.Count; i++)
@@ -267,6 +330,29 @@ namespace Proj3
             return relatedIds.TryGetValue(sourceId, out HashSet<string> targets) && targets.Contains(targetId);
         }
 
+        public bool TryGetInteraction(string sourceId, string targetId, out InteractionEdgeData edge)
+        {
+            edge = null;
+            if (string.IsNullOrEmpty(sourceId) || string.IsNullOrEmpty(targetId)) return false;
+
+            if (edgesByPair.TryGetValue(PairKey(sourceId, targetId), out edge))
+            {
+                return true;
+            }
+            return edgesByPair.TryGetValue(PairKey(targetId, sourceId), out edge);
+        }
+
+        private void AddInteraction(InteractionEdgeData edge)
+        {
+            if (edge == null || string.IsNullOrEmpty(edge.sourceId) || string.IsNullOrEmpty(edge.targetId) || edge.sourceId == edge.targetId)
+            {
+                return;
+            }
+
+            AddRelation(edge.sourceId, edge.targetId);
+            edgesByPair[PairKey(edge.sourceId, edge.targetId)] = edge;
+        }
+
         private void AddRelation(string a, string b)
         {
             if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b) || a == b) return;
@@ -274,6 +360,11 @@ namespace Proj3
             if (!relatedIds.ContainsKey(b)) relatedIds[b] = new HashSet<string>();
             relatedIds[a].Add(b);
             relatedIds[b].Add(a);
+        }
+
+        private static string PairKey(string sourceId, string targetId)
+        {
+            return sourceId + "->" + targetId;
         }
 
         private static bool LabelsSuggestInteraction(string a, string b)
@@ -302,7 +393,7 @@ namespace Proj3
             for (int i = 0; i < items.Count; i++)
             {
                 SegmentedItemData item = items[i];
-                Texture2D thumbnail = CreateThumbnail(source, item.normalizedBounds, item.tint);
+                Texture2D thumbnail = TryLoadCropTexture(item.cropPath) ?? CreateThumbnail(source, item.normalizedBounds, item.tint);
                 Sprite sprite = Sprite.Create(thumbnail, new Rect(0, 0, thumbnail.width, thumbnail.height), new Vector2(0.5f, 0.5f), thumbnail.height / worldHeight);
                 sprite.name = item.label + " Sprite";
 
@@ -324,6 +415,25 @@ namespace Proj3
             }
 
             return spawned;
+        }
+
+        private static Texture2D TryLoadCropTexture(string cropPath)
+        {
+            if (string.IsNullOrWhiteSpace(cropPath)) return null;
+
+            string path = Path.IsPathRooted(cropPath)
+                ? cropPath
+                : Path.Combine(Application.streamingAssetsPath, cropPath);
+            if (!File.Exists(path)) return null;
+
+            byte[] bytes = File.ReadAllBytes(path);
+            Texture2D texture = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            if (!texture.LoadImage(bytes)) return null;
+
+            texture.name = "Proj3 Item Crop";
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+            return texture;
         }
 
         private static void AddLabel(Transform parent, string label, float spriteHeight)
@@ -436,7 +546,7 @@ namespace Proj3
         {
             if (controller != null)
             {
-                controller.SelectItem(this);
+                controller.SelectItem(this, true);
             }
         }
     }
@@ -569,7 +679,7 @@ namespace Proj3
 
             Texture2D image = imageSource.GetImage();
             List<SegmentedItemData> items = segmentationProvider.Segment(image);
-            interactionGraph.Build(items);
+            interactionGraph.Build(items, segmentationProvider.LastInteractions);
 
             spawnedItems.Clear();
             spawnedItems.AddRange(spriteSpawner.Spawn(image, items, this));
@@ -583,9 +693,15 @@ namespace Proj3
             }
         }
 
-        public void SelectItem(Proj3ProxyItem item)
+        public void SelectItem(Proj3ProxyItem item, bool commitIfRelated = false)
         {
             if (item == null) return;
+            Proj3ProxyItem previousItem = selectedIndex >= 0 && selectedIndex < spawnedItems.Count ? spawnedItems[selectedIndex] : null;
+            if (commitIfRelated && previousItem != null && previousItem != item)
+            {
+                TryCommitInteraction(previousItem, item);
+            }
+
             int index = spawnedItems.IndexOf(item);
             if (index >= 0)
             {
@@ -593,6 +709,20 @@ namespace Proj3
             }
 
             handLayout.SetSelected(item);
+        }
+
+        private void TryCommitInteraction(Proj3ProxyItem source, Proj3ProxyItem target)
+        {
+            if (interactionGraph == null || source == null || target == null) return;
+            if (interactionGraph.TryGetInteraction(source.Data.id, target.Data.id, out InteractionEdgeData edge))
+            {
+                Debug.LogFormat(
+                    "Proj3 command: {0} -> {1}, action={2}, instruction={3}",
+                    edge.sourceId,
+                    edge.targetId,
+                    edge.action,
+                    edge.instruction);
+            }
         }
 
         private void EnsureComponents()
@@ -645,6 +775,7 @@ namespace Proj3
 
             GameObject runtime = new GameObject("Proj3 Runtime");
             Proj3PrototypeController controller = runtime.AddComponent<Proj3PrototypeController>();
+            runtime.AddComponent<Proj3ExternalAnalyzer>();
             controller.Configure(rightHand != null ? rightHand : leftHand, camera.transform);
         }
 
