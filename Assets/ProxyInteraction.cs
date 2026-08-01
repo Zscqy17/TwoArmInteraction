@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
@@ -13,11 +14,37 @@ public enum InteractionMode
     ProxyMenu
 }
 
+public enum ProxyVisualStyle
+{
+    Abstract3D,
+    Abstract2D,
+    Realistic3D,
+    Realistic2D
+}
+
+[Serializable]
+public class ProxyVisualSet
+{
+    public GameObject water;
+    public GameObject salt;
+    public GameObject pan;
+}
+
 public class ProxyInteraction : MonoBehaviour
 {
     [Header("Interaction Mode")]
     [SerializeField] private InteractionMode mode = InteractionMode.Proxy;
     public InteractionMode Mode => mode;
+
+    [Tooltip("Used when mode is Proxy / ProxyMenu. Pick manually per trial.")]
+    [SerializeField] private ProxyVisualStyle proxyVisualStyle = ProxyVisualStyle.Abstract3D;
+    public ProxyVisualStyle VisualStyle => proxyVisualStyle;
+
+    /// <summary>Log label: "Auto", or "Proxy_Abstract3D", etc.</summary>
+    public string ConditionName =>
+        (mode == InteractionMode.Proxy || mode == InteractionMode.ProxyMenu)
+            ? $"{mode}_{proxyVisualStyle}"
+            : mode.ToString();
 
     [Header("Experiment")]
     [SerializeField] private Experiment1 experiment;
@@ -28,7 +55,7 @@ public class ProxyInteraction : MonoBehaviour
     [SerializeField] private GameObject waterNotifyCanvas;
     [SerializeField] private GameObject saltNotifyCanvas;
 
-    [Header("Items – Proxy")]
+    [Header("Items – Proxy (active roots; overwritten from visual set in Proxy modes)")]
     [SerializeField] private GameObject waterCup;
     private Grabbable waterCupGrab;
     private MeshFilter waterCupMeshFilter;
@@ -36,6 +63,12 @@ public class ProxyInteraction : MonoBehaviour
     private Grabbable saltContainerGrab;
     private MeshFilter saltContainerMeshFilter;
     [SerializeField] private GameObject pan;
+
+    [Header("Proxy Visual Sets")]
+    [SerializeField] private ProxyVisualSet abstract3D;
+    [SerializeField] private ProxyVisualSet abstract2D;
+    [SerializeField] private ProxyVisualSet realistic3D;
+    [SerializeField] private ProxyVisualSet realistic2D;
 
     [Header("Reticles")]
     [SerializeField] private ReticleMeshDrawer leftProxyInHand;
@@ -119,6 +152,9 @@ public class ProxyInteraction : MonoBehaviour
 
     private void Awake()
     {
+        if (mode == InteractionMode.Proxy || mode == InteractionMode.ProxyMenu)
+            ApplyProxyVisualStyle();
+
         if (waterCup != null)
         {
             waterCupCollider = waterCup.GetComponentInChildren<Collider>();
@@ -151,6 +187,46 @@ public class ProxyInteraction : MonoBehaviour
         SetItemVisible(pan, false);
 
         SetupProxyMenu();
+    }
+
+    private void ApplyProxyVisualStyle()
+    {
+        ProxyVisualSet selected = GetVisualSet(proxyVisualStyle);
+        Debug.Assert(selected != null, "Proxy visual set missing for " + proxyVisualStyle);
+        Debug.Assert(selected.water != null, proxyVisualStyle + ".water missing");
+        Debug.Assert(selected.salt != null, proxyVisualStyle + ".salt missing");
+        Debug.Assert(selected.pan != null, proxyVisualStyle + ".pan missing");
+
+        ProxyVisualSet[] all =
+        {
+            abstract3D, abstract2D, realistic3D, realistic2D
+        };
+        for (int i = 0; i < all.Length; i++)
+        {
+            ProxyVisualSet set = all[i];
+            Debug.Assert(set != null && set.water != null && set.salt != null && set.pan != null,
+                "All four Proxy Visual Sets must be assigned");
+            bool on = set == selected;
+            set.water.SetActive(on);
+            set.salt.SetActive(on);
+            set.pan.SetActive(on);
+        }
+
+        waterCup = selected.water;
+        saltContainer = selected.salt;
+        pan = selected.pan;
+    }
+
+    private ProxyVisualSet GetVisualSet(ProxyVisualStyle style)
+    {
+        switch (style)
+        {
+            case ProxyVisualStyle.Abstract3D: return abstract3D;
+            case ProxyVisualStyle.Abstract2D: return abstract2D;
+            case ProxyVisualStyle.Realistic3D: return realistic3D;
+            case ProxyVisualStyle.Realistic2D: return realistic2D;
+            default: return null;
+        }
     }
 
     private void SetupProxyMenu()

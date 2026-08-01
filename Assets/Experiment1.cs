@@ -169,7 +169,7 @@ public class Experiment1 : MonoBehaviour
     {
         if (logger != null)
         {
-            string modeName = proxyInteraction != null ? proxyInteraction.Mode.ToString() : "Unknown";
+            string modeName = proxyInteraction != null ? proxyInteraction.ConditionName : "Unknown";
             logger.CheckProgressStart(progressAmount, modeName);
             logger.TrackHinderedTime(dt, progressHold);
         }
