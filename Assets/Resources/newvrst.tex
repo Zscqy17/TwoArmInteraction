@@ -1,0 +1,520 @@
+\documentclass[sigconf,review,anonymous]{acmart}
+
+%TC:macro \cite [option:text,text]
+%TC:macro \citep [option:text,text]
+%TC:macro \citet [option:text,text]
+%TC:envir table 0 1
+%TC:envir table* 0 1
+%TC:envir tabular [ignore] word
+%TC:envir displaymath 0 word
+%TC:envir math 0 word
+%TC:envir comment 0 0
+
+\usepackage{amsmath}
+
+\graphicspath{{images/}{./}}
+
+\AtBeginDocument{%
+  \providecommand\BibTeX{{%
+    Bib\TeX}}}
+
+\setcopyright{none}
+\settopmatter{printacmref=false}
+\renewcommand\footnotetextcopyrightpermission[1]{}
+\acmConference[VRST '26]{ACM Symposium on Virtual Reality Software and Technology}{2026}{}
+\acmYear{2026}
+\copyrightyear{2026}
+\acmDOI{}
+\acmISBN{}
+
+
+\title{Controlling Automation: Proxy Manipulation as Embodied Initiation for Proactively Autonomous Wearable Robot Arms in XR}
+
+\makeatletter
+\def\@mkauthors{}
+\def\@shortauthors{}
+\makeatother
+
+%% Abstract section.
+% [中文·摘要] 代理感（SoA）和具身感（SoE）在人机协作中至关重要。先前研究表明更高自动化带来更高
+% 效率，但代价是削弱SoA。这种损失在XR控制的机器人场景中尤为严重。为在保持效率的同时增强SoA和SoE，
+% 我们提出人在环路上（HOTL）控制范式，利用基于代理物的交互：虚拟替身物体出现在用户XR空间中供
+% 任务相关的示范手势使用。被试内研究（N=27）在虚拟厨房中使用一对虚拟具身机械臂，每位参与者完成
+% 三轮：初始全自动基线，随后按随机顺序进行微手势轮和代理物操作轮。每轮后测量工作负荷及外显和
+% 内隐SoA。结果表明两种确认方法均大幅提升代理感，均引发显著时间压缩作为内隐代理标记。
+% 代理物操作条件在具身感和结果归属感上展现强方向性优势——由主题分析的汇聚定性证据支持——
+% 同时保持总体工作负荷相当，仅任务完成时间略有增加。
+% 本研究为在日益自动化的XR人机协作中保持用户代理感提供了可操作的设计指南。
+\begin{abstract}
+Sense of Agency (SoA) and Sense of Embodiment (SoE) are critical in human-robot collaboration. While automation improves efficiency, it diminishes SoA---especially for XR-controlled wearable robotic arms that operate as body-mounted extensions within the user's intimate perceptual space, eroding engagement, trust, and outcome ownership. Passive approval of robot-proposed actions further reduces vigilance, increases undetected errors, and keeps SoA persistently low. To restore SoA and SoE without sacrificing efficiency, we propose a human-on-the-loop (HOTL) paradigm with proxy-based interaction: virtual proxy objects appear in the user's XR space for task-relevant enactment gestures. A within-subjects experiment ($N=27$) compared \textit{Full Automation}, \textit{Micro-Gesture}, and \textit{Proxy-Manipulation } with wearable robotic arms in XR. Both Micro-Gesture and Proxy Manipulation boosted SoA and elicited temporal compression over full automation. While the two confirmation methods did not differ significantly on overall SoA, Proxy Manipulation selectively strengthened self-extension and authorship attribution, shifted users' self-perceived role from passive approver to action initiator, and was preferred by 74\% of participants---despite a significant interaction-time cost and no reduction in workload. This indicates restoring bodily enactment in the confirmation loop may improve agency and trust, and this richness-versus-efficiency trade-off offers design considerations for preserving user agency in highly embodied human-robot collaboration.
+\end{abstract}
+
+\ccsdesc[500]{Human-centered computing~Mixed / augmented reality}
+\ccsdesc[500]{Human-centered computing~Interaction techniques}
+\ccsdesc[300]{Human-centered computing~Empirical studies in HCI}
+\ccsdesc[300]{Computer systems organization~Robotics}
+
+\keywords{HRI, Extended Reality, Sense of Agency, Embodiment, Proxy Manipulation, Human-on-the-Loop.}
+
+\begin{teaserfigure}
+  \centering
+  \includegraphics[width=\textwidth]{images/Banner.png}
+  \caption{Left: Virtual kitchen scenario with dual robotic arms. Middle: The two interaction methods featured in this study: Micro-Gesture---pinch to confirm or reject the help, and Proxy Manipulation---grab and interact to confirm, throw away to reject the help. Right: Proxy Manipulation was preferred by more participants and selectively increased Q5 self-extension and Q8 authorship, while adding clear objective time cost but no significant increase in subjective NASA-TLX workload over Micro-Gesture.}
+  \Description{Overview of the XR cooking scenario, the Micro-Gesture and Proxy Manipulation interaction methods, and the main comparative outcomes.}
+  \label{fig:header}
+\end{teaserfigure}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%% START OF THE PAPER %%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\begin{document}
+
+\maketitle
+
+% 一、引言
+\section{Introduction}
+
+% [中文] 人机交互日益融入扩展现实（XR）工作空间，穿戴式机械臂等机器人系统作为用户身体的
+% 具身延伸运行——这类体挂式装置处于用户亲密感知空间内。当用户熟练地与此类工具交互时，
+% 这些元素成为自我的"上手"延伸，AR/MR技术进一步促进人与机器人之间的双向理解。
+% 传统上，XR机器人界面依靠遥操作式的连续直接操控，保留了代理感和具身感。然而随着辅助机器人
+% 变得更智能，人类参与范式正从连续引导转向间歇性监督——"人在环路上"（HOTL）方法。
+Human-robot interaction is increasingly integrated within Extended Reality (XR) workspaces, where wearable robotic arms and similar systems operate as body-mounted extensions within the user's intimate perceptual space~\cite{10.1145/3242587.3242665, 10.1145/3706598.3713647, 10.1145/3544548.3581184}. When users interact proficiently with such tools, these elements can become ``ready-to-hand'' extensions of the self~\cite{10.1145/3290605.3300673}, and AR/MR technologies further facilitate bidirectional understanding between humans and robots~\cite{10.1145/3491102.3517719}. Traditional XR robot interfaces often rely on teleoperation through continuous direct manipulation, which preserves Sense of Agency (SoA) and Sense of Embodiment (SoE) because users initiate and guide the robot action themselves~\cite{10.1145/3025453.3025457, 10.1145/3025453.3025689}. As assistive robots become more capable, however, human involvement is shifting from continuous guidance toward episodic supervision---a ``human-on-the-loop'' (HOTL) role in which the robot proposes or initiates actions and the user intervenes only at decision points~\cite{10.1145/3610977.3634993}.
+
+% [中文] 将控制权委托给自主系统虽减轻认知负荷，但常常削弱用户的感知自主性。未来的主动式自主机器人
+% 将能预判用户需求并主动发起动作，使人类沦为被动"看门人"。当用户仅通过最小化符号输入审批时，缺乏
+% 感觉运动耦合，无法真正感到对机器人动作负有责任。这种被动确认进一步降低警觉性、增加未察觉错误风险、
+% 并使代理感持续低下——在XR穿戴式机械臂场景中尤为严重，因为机器人在用户亲密感知空间内运作。
+The need to preserve agency does not disappear when autonomy becomes technically competent. Classic automation research argues that highly reliable systems can make human oversight harder: automation changes the operator's activity, reduces opportunities to practice intervention, and creates risks of complacency, automation bias, and out-of-the-loop performance problems when rare failures occur~\cite{bainbridge1983ironies, endsley1995outofloop, parasuraman2000model, parasuraman2010complacency}. Trust research likewise frames the design target as calibrated reliance rather than maximum trust~\cite{lee2004trust, hancock2011trusthri}. HCI and HRI studies similarly show that autonomous assistance can lower workload while reducing perceived autonomy or control~\cite{10.1145/3706598.3713765, 10.5555/3721488.3721596, 10.1145/2702123.2702379, 10.1145/3319502.3374818}. This concern is especially important for body-proximate XR robots, where users may still care about responsibility, taste, safety, and authorship even when a robot can execute an action correctly~\cite{jorling2019service, 10.1145/3746058.3762829, 10.1145/3491102.3517449}. In our Automatic baseline, the robot deliberately made four incorrect ingredient actions; only 13 of 27 participants noticed at least one error, and no participant identified all four. This result motivates a supervision mechanism that keeps users actively in the action chain rather than relying on passive observation of a capable robot.
+
+% [中文] 为弥合这一差距，我们提出用虚拟代理物品的"代理物操作"方法替代被动的二值审批。
+% 当机器人提议动作时，虚拟替身物体出现在用户手边；通过抓取并演示意图（如将虚拟杯移向锅），重新耦合
+% 用户运动意图与机器人执行，恢复SoA和SoE所需的感觉运动回路。被试内实验（N=27）比较全自动、微手势
+% 和代理物操作。两种确认方法均提升正向代理感并引发时间压缩，但代理物操作的SoA增强更为显著，
+% 同时强化了具身感和结果归属感，且呈现更高任务准确度趋势——表明恢复身体动作可改善代理感和信任、减少错误。
+The key design question is therefore not whether interaction produces more agency than no interaction, but what form confirmation should take once a proactive robot has already selected an action. A lightweight Micro-Gesture provides efficient symbolic permission, but it does not resemble the task action it authorizes. We propose \textit{Proxy Manipulation}, an enactment-based confirmation method in which a task-relevant virtual proxy appears near the user and the user confirms by manipulating that proxy (e.g., moving a virtual cup toward the pan). The method is designed to combine motor enactment, semantic congruence, and causal clarity: the user does not merely permit a machine decision, but begins an action that the robot then continues.
+
+The non-trivial issue is the confirmation-form contrast under the same proactive proposal. In both Micro-Gesture and Proxy Manipulation, the robot proposes the same help, the user can accept or reject the same action, and the robot executes the same behavior after acceptance. The difference is only how the human enters the action chain: as a symbolic approver or as an embodied initiator of a task-relevant partial action. This setting asks whether partial enactment during confirmation is sufficient to reshape self-extension, authorship, and role perception, even when it does not produce a broad aggregate SoA advantage or improve efficiency.
+
+We evaluated this paradigm in a within-subjects experiment ($N=27$) with wearable robotic arms across three conditions: an Automatic passive-observation and timing-calibration baseline, Micro-Gesture confirmation, and Proxy Manipulation. The strongest causal comparison is between the two counterbalanced confirmation methods. Both Micro-Gesture and Proxy Manipulation increased explicit agency-related ratings over Automatic and elicited significant temporal compression, while aggregate SoA did not significantly differ between the two confirmation methods. Proxy Manipulation instead showed a selective pattern: significantly higher self-extension (Q5) and authorship (Q8), qualitative reports of a role shift from granting permission toward initiating action, and a significant preference by 20 of 27 participants, despite significantly longer decision times and no significant difference in subjective NASA-TLX workload. An additional exploratory study ($N=6$) with a physical robot arm provided preliminary evidence that the interaction concept can extend beyond the fully virtual simulation.
+
+% [中文] 我们的贡献包括：(1) 一种新颖的XR中主动自主机械臂"代理物操作"范式；
+% (2) 比较微手势和代理物操作确认的被试内评估（N=27）；(3) 物理机械臂的初步探索性研究（N=6），
+% 提供该范式可推广至虚拟模拟之外的定性证据；(4) 在主动式机器人自主下保持代理感的设计指南。
+In short, our contributions are:
+\begin{itemize}
+\item[\textbf{(1)}] a ``Proxy Manipulation'' paradigm that treats confirmation for proactively autonomous robot arms in XR as task-relevant embodied enactment rather than symbolic permission;
+
+\item[\textbf{(2)}] a within-subjects evaluation ($N=27$) that isolates the confirmation-form contrast between Micro-Gesture and Proxy Manipulation after the robot has made the same proposal;
+
+\item[\textbf{(3)}] empirical characterization of a selective role-shift effect and efficiency-preference contradiction: Proxy Manipulation strengthens self-extension and authorship and is preferred by most participants, but does not significantly improve aggregate SoA over Micro-Gesture and carries clear objective time costs; and
+
+\item[\textbf{(4)}] an exploratory study ($N=6$) with a physical robot arm and preliminary design considerations for when enactment-based confirmation is worth its operational cost.
+\end{itemize}
+% 二、相关工作
+
+\section{Related Work}
+
+% 2.1 HCI与HRI中的代理感
+\subsection{Sense of Agency and Embodiment in HRI}
+\label{sec:Related SoASoE}
+% [中文] 代理感（SoA）指对自身行为及其结果的自主控制的主观体验。广泛接受的神经认知解释是
+% "比较器模型"：每个自主运动指令（传出副本）产生感觉后果的内部预测，大脑将其与实际反馈比较。
+% 在非接触界面中，意向性绑定效应（SoA的主要内隐测量）与物理交互相当。然而在机器人发起的动作中，
+% 用户缺乏最初的传出副本，导致预测失配，削弱了"在环路中"的感觉。
+Sense of Agency (SoA) refers to the subjective experience of voluntary control over one's actions and their consequences~\cite{haggard2017sense, moore2016agency, 10.1145/3544548.3580651}. Action-effect, comparator, and multifactorial cue-integration accounts argue that agency depends on the relation between intentions, motor predictions, contextual interpretation, and outcomes: agency is strengthened when feedback matches the expected effect of a voluntary action~\cite{haggard2002voluntary, chambon2014intentions, synofzik2008beyond, s22249779, 10.1038/s41562-021-01233-2, app14167327}. This creates a challenge for robot-initiated action, where the user may not generate a task-relevant action plan before the robot moves~\cite{arXiv.2501.07462, yashin_robot_2024}. Prior HRI work confirms that higher robot autonomy can improve task performance while reducing users' SoA~\cite{10.5555/3721488.3721596}, while also suggesting that robot-initiated action is not inherently incompatible with agency when the interaction preserves relevant sensorimotor relations~\cite{s41598-020-59014-2}.
+
+Embodiment and tangible-interaction research suggests one way to preserve this action-effect link: couple digital or robotic outcomes to graspable, task-relevant user actions~\cite{kilteni2012embodiment, synofzik2008imove, ishii1997tangible, 10.1145/3290605.3300673}. Input method, shared control, control mapping, and feedback modality shape whether users experience an avatar or virtual appendage as an extension of the self and how they attribute responsibility for its actions~\cite{li2025fingers, 10.1145/3411764.3445379, winkler_how_2020, 10.1145/3706598.3713586, 10.1145/3544548.3580979, 10.1145/3613904.3642518}. Haptic and vibrotactile cues can enhance agency or embodiment~\cite{10.1145/3613904.3642425, 10.1145/3613904.3642499}, and embodied VR controller actions can produce different cognitive outcomes from abstract gestures~\cite{10.1145/3489849.3489892}. These findings make the direction of our hypothesis plausible; our contribution is to characterize whether enactment helps when it is used specifically as a confirmation mechanism for proactive XR wearable robot arms, and where it fails to outperform symbolic confirmation.
+
+This focus differs from direct manipulation and embodied authoring. In those settings, the user typically controls the action trajectory or creates the behavior before execution; the action is already authored by the user. In proactive autonomy, by contrast, the robot has already selected the next step and the user only enters at a confirmation point. The unresolved question is therefore narrower and more diagnostic: whether a short, task-relevant partial enactment can still change perceived authorship and self-extension when the robot retains action selection and execution. This paper uses that confirmation-only setting to separate a role-perception effect from the more obvious result that any human input increases agency over full automation.
+
+% 2.2 主动式自主与监督界面
+\subsection{Human-on-the-Loop and Supervisory Control in Robotics}
+% [中文] 传统共享自主系统中人类通常发起请求，但随着自主性增强，用户更倾向于以"上司"或"监控者"
+% 等主动角色管理交互。预测性机器人控制可提升团队效率，但需人机双向适应来维持信任。
+% 主动式自主更进一步：机器人预判需求并主动发起帮助，产生本质不同的监督挑战——用户需评估未经请求
+% 的提议。研究表明有形物理实体、显式空间分配机制和人机互动驱动均可改善感知控制。
+% 对55个共享控制系统的综合分析确认，没有单一符号配置能最优平衡代理感的所有维度。
+% 混合主动系统中的代理感不仅取决于控制"量"，更取决于控制表达的"形式"和"模态"——
+% 这推动了我们对具身代理物交互作为符号审批替代方案的研究。
+Shared autonomy usually blends human input with autonomous capabilities while the human still initiates requests~\cite{10.1145/3491102.3502085, 10.5555/3721488.3721596}. As autonomy increases, users often prefer active supervisory roles rather than being reduced to passive recipients of automated decisions~\cite{10.1145/3706598.3714112, 10.1145/3706598.3713765}. Proactive autonomy changes this relation: the robot anticipates needs and initiates offers without being asked~\cite{10.1145/3544548.3581124, 10.1145/3613904.3642911, 10.5555/2906831.2906844, baraglia2017efficient}. Automation research warns that reliable systems can leave users out of the loop when rare intervention is required~\cite{bainbridge1983ironies, endsley1995outofloop, parasuraman2000model, parasuraman2010complacency}, and HRI work shows that perceived control depends not only on how much control users retain, but on the form and modality of that control~\cite{10.1145/3491102.3517610, 10.1145/3491102.3517500}. Tangible entities, spatial task allocation, and human-machine mutual actuation further show that control form can reshape perceived agency in mixed-initiative systems~\cite{10.1145/3491102.3517449, 10.1145/3411764.3445355, 10.1145/3313831.3376705}. Yet few supervisory interfaces examine confirmation form for proactive robot actions in XR-mediated wearable scenarios.
+
+The closest conceptual family is embodied confirmation under proactive autonomy: the system initiates a proposal, but the user must perform an action that decides whether the proposal becomes real. This is distinct from binary approval interfaces, where the user's role is mainly to authorize, and from shared control, where the user's continuous input directly shapes motion. Our work contributes empirical evidence on this middle case. It shows that task-relevant enactment can change role perception without solving every agency measure and while making operation slower, which is precisely the trade-off that lightweight supervisory interfaces usually hide.
+
+% 2.3 可穿戴机器人臂控制方法
+\subsection{Wearable Robot Arm Control Methods}
+% [中文] 按控制方法演进组织：全身映射→不同身体部位映射→XR赋能（多模态数据、从手柄到手势趋势）
+% →机器人更智能/半自主→本研究探索手势确认下的人机半自主协作。
+
+Wearable robotic limbs have progressed from direct body mapping~\cite{10.1145/3544548.3581184} to alternative-body-part mappings such as MetaArms~\cite{10.1145/3242587.3242665} and JIZAI ARMS~\cite{10.1145/3544548.3581169}, while XR broadens the design space through hand tracking, gaze, spatial proxies, and embodied demonstrations~\cite{wang2403systematic, kim2025controllers, 10.5555/3378680.3378711, 10.1145/3706598.3713812, 10.1145/3332165.3347902, 10.1145/3746058.3758451, 10.1145/3586183.3606743}. XR mappings can evoke ownership over virtual appendages and support embodied authoring, but most work still assumes that users directly control or author robot behavior~\cite{10.1145/3613904.3642340, 10.1145/3139131.3139149}. As wearable arms become semi-autonomous and proactively initiate actions, the open question becomes how users should confirm or reject proposals without becoming passive approvers.
+
+
+% 三、方法
+\section{Method}
+
+% 3.0 研究问题与假设
+\subsection{Research Questions and Hypotheses}
+% [中文] 我们提出三个研究问题：RQ1——基于示范的确认是否能提高外显SoA、内隐SoA（时间压缩）和SoE，
+% 超过全自动和微手势确认？RQ2——它如何影响工作负荷（NASA-TLX）和客观性能？RQ3——用户更偏好
+% 哪种方法，偏好是否与SoA相关？我们假设：H1代理物操作产生比微手势确认更高的外显/内隐SoA和SoE；
+% H2代理物操作不显著增加总体工作负荷，而两种确认方法在SoA/SoE上均优于自动基线；
+% H3更高SoA与更高偏好相关，且代理物操作方法比微手势方法更受偏好。
+We ask how enactment-based confirmation affects agency-related constructs, embodiment, workload, performance, and preference compared with passive automation and symbolic Micro-Gesture confirmation. We expected both confirmation methods to improve agency-related measures over Automatic, while Proxy Manipulation would show its strongest additional benefits in role-relevant constructs such as self-extension and authorship. We also expected Proxy Manipulation to impose objective time costs that might not translate into higher subjective NASA-TLX workload, and that preference might depend on role perception and causal clarity rather than aggregate SoA alone.
+% 3.3 系统与实验条件
+\subsection{System and Experimental Conditions}
+The system uses a Meta Quest~3 XR headset for visualization and bare-hand tracking, with the virtual kitchen rendered in Unity. Participants stand in front of a virtual pan and monitor three progress bars: two ingredient bars for salt and water, each divided into green and red sections indicating whether the current proposal should be accepted or rejected, and one main progress bar showing overall cooking progress. The main bar pauses whenever the proactive robot initiates a proposal. Each ingredient is proposed four times per round following a predetermined pattern (water: reject, reject, accept, accept; salt: reject, accept, reject, accept), and the fourth proposal is a dual-task event where both ingredients are proposed simultaneously. Pilot iterations constrained the final design to comparable movement demand across confirmation methods, predictable robot delay, and no extra cues beyond the interaction differences under study, so that the comparison focused on confirmation form rather than prompt timing or auxiliary feedback.
+
+% [中文] 评估三种确认范式：A)全自动基线（机器人自主执行无需确认，用户仅观察）；B)微手势确认
+% （食指捏合接受、中指捏合拒绝，为任意符号映射的低运动量对照条件）；C)代理物操作（半透明虚拟杯/
+% 盐瓶出现在手边，抓取移向锅确认，推开或超时拒绝）。条件C设计约束：运动量可比、可控可信延迟、
+% 清晰因果反馈、一致空间语义映射。采用被试内设计，第1轮固定为条件A，第2、3轮为B和C随机顺序。
+Within this scenario, we evaluated the following three confirmation paradigms:
+
+\textbf{Baseline: Automatic (Passive-Observation and Timing Baseline).} The robot arm autonomously decides whether to add water or salt and executes without user confirmation. The participant observes without approving, rejecting, or initiating the robot action. This round is a calibration baseline rather than an equivalent confirmation technique.
+    
+	\textbf{Condition A: Micro-Gesture Confirmation (Symbolic).} The participant responds to each robot proposal using bare-hand micro-gestures tracked by the headset: an index-finger pinch to accept and a middle-finger pinch to reject. This mapping follows common XR hand-gesture conventions in which pinch-like gestures are used for selection and cancellation. The condition represents a low-effort symbolic confirmation method with an arbitrary mapping between gesture and cooking outcome.
+    
+	\textbf{Condition B: Proxy Manipulation (Proposed Confirmation Method).} When the robot proposes an action, a semi-transparent virtual proxy of the relevant ingredient (e.g., a cup for water or a salt shaker for salt) appears in the scene. If the proxy initially appears outside comfortable reach, the participant retrieves it through distance grab or ray-based interaction. Once the participant grasps the ingredient proxy, a target proxy of the pan appears within comfortable reach and below chest height, following common XR hand-interaction guidance for comfortable hand interaction. To confirm, the participant moves the ingredient proxy toward the target pan proxy with a smooth downward action; to reject, the participant throws the proxy away. The robot arm executes the corresponding physical action after a controlled delay. This enactment mirrors the intended cooking action and creates a task-relevant causal link between user input and robot execution.
+
+We use a within-subjects design with one independent variable: \textit{Interaction Condition} (Baseline, A, B). Each participant completes three rounds, one per condition. Across the three rounds, participants encounter 24 proposal events in total, of which 16 require active decisions in the two confirmation conditions. Round~1 is always Automatic so participants first observe robot timing for the temporal-compression measure. Rounds~2 and~3 are Micro-Gesture and Proxy Manipulation, counterbalanced across participants. Thus, the strongest causal interpretation concerns the Micro-Gesture versus Proxy Manipulation contrast; comparisons against Automatic are treated as baseline and motivation evidence.
+
+All three rounds used the same proposal schedule and robot animations. At each main-bar pause, the indicator position on the salt or water bar specified whether the correct response was accept or reject. In the confirmation rounds, accepting triggered the same robot animation that would have occurred under Automatic, while rejecting skipped the ingredient action and resumed the cooking sequence. The dual-task event required participants to resolve both ingredient proposals during the same pause. This design keeps the robot's selected action, timing, and outcome constant across Micro-Gesture and Proxy Manipulation, so that the primary manipulation is the form of human confirmation rather than the robot behavior that follows it.
+
+% [中文] 将自动基线固定为第1轮是出于两个考量的刻意设计选择。首先，它为所有参与者提供一个共享的
+% "体验锚点"：在接触任一人在环路条件之前先体验完全自主执行，参与者会对最低代理感形成具体认知，
+% 从而校准其后续判断。其次，它支撑内隐代理感的测量。在简报环节，参与者被告知机械臂加水动作(4.5秒)
+% 和加盐动作(5.0秒)的参考时长，并被告知"实验中这些时长可能会调整"。自动轮让参与者亲眼观察这些
+% 实际时长，因此后续HOTL轮中检测到的任何时间压缩都反映真正的代理相关感知偏移，而非对机器人时间
+% 特性的不熟悉。（实际上时长在整个实验中保持不变。）我们承认固定第1轮阻止了对自动条件的完全平衡，
+% 并在局限性部分讨论了由此产生的顺序效应限制。
+Fixing the Automatic baseline as Round~1 was a deliberate design choice. The baseline gives all participants a shared passive-observation reference before they experience either human-on-the-loop method, and it lets participants observe the robot's water-adding (4.5\,s) and salt-adding (5.0\,s) durations before later estimating them. During briefing, participants were told these durations might change; in reality, they remained constant. This deception enabled temporal compression as an implicit agency probe and was disclosed during debriefing. Counterbalancing Automatic would have introduced a different contamination risk: after participants had practiced Micro-Gesture or Proxy Manipulation, they might continue to anticipate, mentally simulate, or judge robot actions through that learned intervention frame during the passive baseline. Similar baseline-first or control-first logic has been used when later exposure could contaminate a reference condition in HRI and cognition studies~\cite{wang2018mindperception, cuijpers2015motions, kosslyn1999area17}. Because the baseline is fixed first, we do not use it as a fully counterbalanced confirmation condition; instead, we interpret it as an uncontaminated timing and passive-observation reference and reserve stronger causal claims for the counterbalanced Micro-Gesture versus Proxy comparison.
+
+% 4.4 被试与流程
+\subsection{Participants and Procedure}
+% [中文] 招募27名被试（12女15男；年龄M=23.04，SD=4.02，范围18-31）。
+% 均有正常或矫正视力及VR经验。研究经IRB批准，所有被试签署知情同意书。
+We recruited 27 participants (12 female, 15 male; age: $M = 23.04$, $SD = 4.02$, range 18--31), all with normal or corrected-to-normal vision and prior VR experience. The study was IRB-approved and all participants provided written informed consent.
+
+% [中文] 流程：1）知情同意+VR经验+惯用手；2）讲解XR厨房场景（进度条、红绿区段；内隐SoA设置：
+% 告知参考动作时长，声称实验中会调整并要求每轮后估计，实际时长不变以测量时间压缩）；
+% 3）三轮实验：第1轮固定为全自动基线(A)，第2、3轮为微手势(B)和代理物操作(C)随机顺序，
+% 后两轮各前有简短训练阶段；4）每轮后填写问卷包（时间估计+自定义代理感问卷+NASA-TLX）；
+% 5）实验后半结构化访谈（感知控制、舒适度、条件偏好、因果清晰度）；
+% 6）事后揭秘：告知被试内隐SoA测量中使用的欺骗——机械臂任务完成时长实际始终不变，
+% 从未在各轮之间调整。给予被试提问和撤回数据的机会；无人选择撤回。
+After consent and briefing, participants completed the Automatic round followed by the two counterbalanced confirmation rounds, with short training before each confirmation method. After every round they reported perceived robot duration, completed the agency-related questionnaire and NASA-TLX, and after all rounds completed a semi-structured interview about control, comfort, preference, and causal clarity. Participants were debriefed about the temporal-estimation deception; no one withdrew data.
+
+% 4.7 测量指标
+\subsection{Measures}
+
+% 4.7.0 问卷设计
+\subsubsection{Questionnaire Design}
+\label{sec:questionnaire}
+% [中文] 由于标准SoAS量表针对一般性代理感，未涵盖可穿戴机械臂在主动自主烹饪任务中的特殊情境因素，
+% 我们设计了定制问卷。涵盖四个维度：任务表现、代理感、具身感、成果归属感。
+Because standard SoA instruments are not tailored to proactive, body-proximate robot assistants, we designed an 11-item questionnaire organized into three agency-related construct groups (Table~\ref{tab:questionnaire}). Our setting introduces factors that generic SoA scales do not directly capture: the robot arm operates within the user's near-body workspace, the robot initiates proposals rather than only responding to commands, and the task produces a visible outcome whose authorship and responsibility can be attributed. The questionnaire is therefore not a validated standalone SoA scale; we interpret it as construct probes triangulated with temporal estimates, NASA-TLX, objective metrics, preference, and interviews.
+
+\begin{table*}[t]
+\centering
+\caption{Custom questionnaire items grouped by dimension. All items are rated on a 7-point Likert scale (1\,=\,strongly disagree, 7\,=\,strongly agree). (R) denotes reverse-coded items. Questions' number refers to their order in the actual questionnaire.}
+\label{tab:questionnaire}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}llp{11.5cm}@{}}
+\toprule
+\textbf{Dimension} & \textbf{\#} & \textbf{Item} \\
+\midrule
+Sense of Agency & Q1 & The decision of whether and when to add ingredients is within my hands. \\
+ & Q2 & After giving instructions, the robot arm's behavior and movements matched my expectations. \\
+ & Q3 & The robot arm's actions in turn influenced my own behavior. (R) \\
+ & Q6 & It was my instructions that caused the water/salt to be added. \\
+ & Q7 & Without my intention, the robot arm's actions (adding water, salt) just happened directly. (R) \\
+ & Q10 & When performing the confirmation action, I felt like a tool controlled by the system. (R) \\
+ & Q11 & I felt I was just mechanically repeating the confirmation action without truly thinking about the operation itself. (R) \\
+\midrule
+Sense of Embodiment & Q4 & I felt the robot arm became a part of my body. \\
+ & Q5 & I felt the robot arm's task-completion movements were an extension of my own movements. \\
+\midrule
+Outcome Ownership & Q8 & This dish was cooked by me. \\
+ & Q9 & If the robot arm added too much water or salt and the final dish ended up too salty or bland, I believe the responsibility lies with me. \\
+\bottomrule
+\end{tabular}
+\end{table*}
+
+% [中文] 代理感（Q1-Q3, Q6-Q7, Q10-Q11）是我们的主要维度，基于SoAS框架。Q1衡量意志控制——
+% 对机器人动作的决策权是否仍在参与者手中。Q2衡量预期匹配——比较器模型中的关键代理线索——
+% 测量发出指令后机器人行为是否符合用户预测。Q3衡量双向影响（机器人自主动作重新引导用户行为的程度）。
+% Q6-Q7针对因果归因：用户是否将自己的指令视为结果的原因。Q10-Q11为反向编码题目，探测代理感质量——
+% 确认交互是感觉像真正的决策还是走流程式的敷衍盖章，在比较符号式与示范式确认时尤为相关。
+\textbf{Sense of Agency} items probe volitional control, expectation matching, causal attribution, and whether confirmation felt like genuine decision-making~\cite{tapal2017sense}. Q1 asks whether the decision remains ``within my hands,'' Q2 targets expectation matching between instruction and robot behavior, and Q6/Q7 probe whether the user attributes the robot outcome to their own intention. \textbf{Sense of Embodiment} items probe body ownership and self-extension; Q5 is especially important because it asks whether the robot's task-completion movements felt like an extension of the user's own movement. \textbf{Outcome Ownership} items probe authorship and responsibility for the cooked dish; Q8 is central to our role-shift argument because it asks whether the final dish felt cooked by the user rather than merely produced by the robot.
+
+We use triangulation to control the risk of over-interpreting a custom questionnaire. The aggregate SoA score is useful for detecting the broad difference between passive automation and confirmation, but its lower internal consistency makes it inappropriate as the sole basis for a Proxy-over-Gesture claim. Our main interpretation therefore relies on convergence across construct-specific items (Q5 and Q8), temporal estimation, NASA-TLX, objective time and accuracy, preference, and interview themes. This measurement framing also keeps the mechanism claim bounded: Proxy Manipulation is not treated as ``pure agency,'' but as a combination of motor enactment, semantic congruence, and causal clarity.
+
+
+% 4.8 分析计划
+\subsection{Data Analysis}
+% [中文] 采用非参数框架分析（序数Likert数据和小样本时间变量可能违反参数假设）：
+% 代理感按三个主题维度报告：代理感(SoA, 7项)、具身感(SoE, 2项)、结果归属感(OO, 2项)，
+% 反向计分题目经8-raw翻转后求均值。Cronbach α评估内部一致性，
+% 三条件全局检验用Friedman检验+Kendall W效应量；主要配对比较（微手势vs代理物操作）用
+% Wilcoxon符号秩检验+秩双列r_rb效应量；多重比较用Holm-Bonferroni校正；
+% 时间压缩用Wilcoxon检验对零比较及条件间比较；顺序效应用Mann-Whitney U检验；
+% Spearman相关分析外显SoA、内隐SoA与偏好关系。
+We used nonparametric analyses for ordinal Likert data and small-sample timing variables. Questionnaire items were scored as three construct means with reverse-coded items flipped via $8-\text{raw}$; internal consistency was reported with Cronbach's $\alpha$. Friedman tests with Kendall's~$W$ assessed three-condition effects, Wilcoxon signed-rank tests with rank-biserial $r_{rb}$ assessed paired contrasts, Holm--Bonferroni corrected multiple comparisons, Mann--Whitney $U$ tests checked order effects, and Spearman correlations examined preference.
+
+% 五、结果
+\section{Results}
+
+% [中文] 结果分为两部分：定量分析（客观性能和工作负荷，RQ2）和定性分析（外显/内隐代理感量表、
+% 用户偏好和半结构化访谈，RQ1、RQ3）。
+
+We organized the results into two main sections: quantitative analysis covering objective performance and workload (RQ2), and subjective measures comprising explicit and implicit agency scales, user preference, and semi-structured interviews (RQ1, RQ3).
+
+% [中文] 定量分析：客观性能与工作负荷。
+\subsection{Quantitative Analysis: Performance and Workload}
+\begin{figure*}[tb]
+    \centering
+    \includegraphics[width=0.68\linewidth]{images/objective_performance.png}
+    \caption{Objective performance metrics for Micro-Gesture and Proxy Manipulation.}
+    \Description{Four side-by-side box plots comparing Micro-Gesture and Proxy Manipulation. Decision Accuracy shows no significant difference. Total Duration, Total Hindered Time, and Average Decision Time are higher for Proxy Manipulation.}
+    \label{fig:objective_performance}
+\end{figure*}
+
+% 5.1 客观性能（RQ2）
+\textbf{Objective Performance.}
+% [中文] 被试层面决策准确率微手势(86.11%)与代理物操作(90.28%)无显著差异；但试次层面混合逻辑回归
+% 显示代理物操作有显著优势(OR=1.64, p=.042)。最突出发现是代理物操作的时间成本：总时长、总受阻时间、
+% 平均决策时间均显著高于微手势(均p<.001)，反映抓取移动虚拟物体固有的更慢特性。
+Decision Accuracy did not differ significantly between Micro-Gesture ($86.11 \pm 16.01\%$) and Proxy Manipulation ($90.28 \pm 12.18\%$; $W = 36.0, p =0.188$, $r_{rb}=-.400$). A supplementary trial-level mixed logistic regression, treating each decision point as a binary observation with subject as a random intercept, suggested a per-decision Proxy advantage (OR $= 1.64$, 95\% CI $[1.02, 2.65]$, $p =0.042$). We treat this as secondary evidence because the primary participant-level comparison was not significant.
+
+The clearest objective result was cost: Proxy Manipulation was significantly slower on all three time metrics. Total Duration was higher for Proxy than Micro-Gesture ($79.47 \pm 17.25$ vs.\ $64.59 \pm 10.52$\,s; $W=43.0$, $p<.001$, $r_{rb}=-.772$), as was Total Hindered Time ($58.47 \pm 17.25$ vs.\ $43.60 \pm 10.52$\,s; $W=43.0$, $p<.001$, $r_{rb}=-.772$). Average Decision Time showed the same pattern with a larger effect ($5.50 \pm 2.07$ vs.\ $3.03 \pm 1.18$\,s; $W=11.0$, $p<.001$, $r_{rb}=-.942$). This confirms that Proxy Manipulation should not be framed as an efficiency improvement over Micro-Gesture.
+
+% [中文] 自动基线下的错误检测。自动模式预设了4次错误操作。27名参与者中，13人（59\%）
+% 在事后访谈中报告发现了至少一项错误，1人部分察觉，8人（36\%）完全未发现。
+% 没有任何参与者准确识别出全部4次错误。1xx组检测率(~75-83\%)高于2xx组(40\%)。
+% 直接提供了被动观察下警觉性不足的行为证据。
+\textbf{Error Detection under Full Automation.}
+The Automatic baseline deliberately contained four incorrect robot actions. Only 13 of 27 participants (48\%) noticed at least one error, one participant showed partial awareness, and no participant accurately identified all four errors. Participants who noticed errors often reported only a vague impression that an action seemed inconsistent with the red/green cue, rather than a precise count of what went wrong. This result is not used as a counterbalanced condition effect; rather, it provides behavioral motivation for the out-of-the-loop concern. Even with visible progress bars and explicit task instructions, passive observation did not reliably support error detection.
+
+% [中文] 主观测量部分包含外显和内隐代理感量表结果以及27份半结构化访谈的主题分析。
+\subsection{Subjective Measures and Interviews}
+\label{sec:measures}
+\subsubsection{Explicit and Implicit Agency}
+\begin{figure*}[tb]
+    \centering
+    \includegraphics[width=0.88\linewidth]{images/subjective_metrics.png}
+    \caption{Subjective measures across Auto, Micro-Gesture, and Proxy Manipulation.}
+    \Description{Box plots of subjective measures across Auto, Micro-Gesture, and Proxy Manipulation. Auto has lower workload and lower agency-related scores; both confirmation methods show temporal compression and higher agency measures.}
+    \label{fig:subjective_metrics}
+\end{figure*}
+% 5.1 外显代理感（RQ1）
+\textbf{Explicit Sense of Agency (RQ1).}
+% [中文] 按三个主题维度报告外显代理感。代理感维度(SoA, 7项)：Friedman检验显著（χ²=43.386, p<.001, W=0.803），
+% 自动(M=2.714)显著低于微手势(M=5.011)和代理物操作(M=5.063)（均p<.001, r=-1.000），
+% 两种确认方法间无差异(W=91.0, p=.622, Holm p=.706, r=-.133)。α值偏低(.077-.475)。
+% 具身感维度(SoE, 2项)：Friedman显著（χ²=18.264, p<.001, W=0.338），自动(M=3.074)显著低于
+% 微手势(M=4.204, Holm p=.003)和代理物操作(M=4.667, Holm p<.001)，两种确认方法间
+% 差异为中等效应量但未达显著(W=77.0, p=.065, Holm p=.195, r=-.442)。α值高(.919-.921)。
+% 结果归属感维度(OO, 2项)：Friedman显著（χ²=39.213, p<.001, W=0.726），自动(M=1.759)
+% 远低于微手势(M=4.500)和代理物操作(M=4.704)，两种确认方法间无差异(W=56.0, p=.353)。
+% 补充代理感总分（13项）呈相同模式。
+Internal consistency was high for Sense of Embodiment (Automatic $\alpha=.723$; Micro-Gesture $\alpha=.919$; Proxy $\alpha=.921$) but lower for Sense of Agency ($.077$--$.475$) and Outcome Ownership ($.592$--$.702$), so we interpret aggregate SoA cautiously. All three construct groups showed significant condition effects. Sense of Agency showed a strong omnibus effect ($\chi^2(2)=43.386$, $p<.001$, Kendall's $W=.803$): Automatic ($M=2.714$, $SD=.745$) was significantly lower than Micro-Gesture ($M=5.011$, $SD=.736$) and Proxy ($M=5.063$, $SD=.729$), while Micro-Gesture and Proxy did not differ ($W=91.0$, $p=.622$, Holm $p=.706$). Sense of Embodiment also showed a condition effect ($\chi^2(2)=18.264$, $p<.001$, $W=.338$), with Automatic lower than both confirmation methods and a medium but non-significant Micro-Gesture versus Proxy difference ($p=.065$). Outcome Ownership followed the same pattern ($\chi^2(2)=39.213$, $p<.001$, $W=.726$): Automatic was much lower than Micro-Gesture and Proxy, but the two confirmation methods did not significantly differ ($p=.353$). A supplementary 11-item Agency Total mirrored this result ($p=.247$ for Micro-Gesture vs.\ Proxy).
+
+% [中文] 逐题目分析：为确定代理物操作条件优势在各维度内的集中之处，我们逐题目检验。
+%
+% （注：原始问卷中的任务表现项已从最终11题问卷中移除，不在此分析范围内。）
+%
+% 具身感(Q4-Q5)：自动vs代理物操作差异显著——身体归属感(Q4: Auto M=2.93 vs Proxy M=4.30, p=.004)
+% 和自我延伸(Q5: Auto M=3.22 vs Proxy M=5.04, p<.001)。关键地，在微手势vs代理物操作的
+% 主要比较中，自我延伸(Q5)代理物操作显著更高(M=5.04 vs 4.52, p=.040, r_rb=-.458),
+% 身体归属感(Q4)显示一致的方向性趋势(M=4.30 vs 3.89, p=.161, r_rb=-.355)。
+%
+% 结果归属感(Q8-Q9)：自动vs代理物操作差异巨大(Q8: M=1.70 vs 4.89, p<.001;
+% Q9: M=1.81 vs 4.52, p<.001)。微手势vs代理物操作比较中，创作归属(Q8"这盘菜是我做的")
+% 代理物操作显著更高(M=4.89 vs 4.33, p=.028, r_rb=-.476)，而责任(Q9)无差异(p=.639)。
+%
+% 这些逐题目结果确认代理物操作条件的优势集中在具身感和结果归属感——与感觉运动耦合和
+% 创作归因最直接相关的维度——而非均匀分布于所有代理感题目。
+\textbf{Per-Item Analysis.}
+The Proxy advantage was selective at the item level. In the primary Micro-Gesture versus Proxy comparison, self-extension (Q5) was significantly higher for Proxy ($M=5.04$ vs.\ $4.52$; $W=54.0$, $p=.040$, $r_{rb}=-.458$), while body ownership (Q4) showed a consistent but non-significant trend ($M=4.30$ vs.\ $3.89$, $p=.161$). Authorship (Q8: ``This dish was cooked by me'') was also higher for Proxy ($M=4.89$ vs.\ $4.33$; $W=31.5$, $p=.028$, $r_{rb}=-.476$), whereas responsibility (Q9) did not differ ($p=.639$). These item-level results clarify the mechanism: Proxy Manipulation affected role and ownership constructs rather than uniformly increasing all agency items.
+
+% 5.2 内隐代理感（RQ1）
+\textbf{Implicit Sense of Agency (RQ1).}
+% [中文] 分析时间压缩误差（估计时长-实际时长）。两个人在环路条件均显示显著时间压缩（内隐代理标记）：
+% 微手势-0.74±0.91s (p<.001, r_rb=-.761)，代理物操作-1.05±1.02s (p<.001, r_rb=-.838)。
+% 代理物操作展现更大数值压缩，但条件间差异未达显著(p=.101)。
+Both human-on-the-loop conditions showed significant temporal compression (Micro-Gesture: $-0.74 \pm 0.91$~s, $p<.001$; Proxy: $-1.05 \pm 1.02$~s, $p<.001$). Proxy was numerically stronger, but the overall between-condition difference was not significant ($p=.101$), so we treat implicit SoA differences cautiously.
+
+% 4 任务负荷（RQ2）
+\textbf{Workload (RQ2).}
+% [中文] 自动基线NASA-TLX总分(1.88)显著低于微手势(2.62, p=.002)和代理物操作(2.64, p<.001)。
+% 关键发现：两种确认方法间总体工作负荷无显著差异(p=.726)，表明代理物操作未加重总体负荷。
+% 子维度层面两种方法间均无显著差异；仅体力需求有边缘趋势(p=.079)，代理物操作略高。
+Automatic incurred lower NASA-TLX workload ($1.88 \pm 0.77$) than both confirmation methods, but Micro-Gesture ($2.62 \pm 1.05$) and Proxy Manipulation ($2.64 \pm 1.05$) did not differ ($W=115.0$, $p=.726$, $r_{rb}=-.091$). At the subscale level, no dimension significantly differed between the two confirmation methods after correction; Physical Demand showed only a marginal trend toward being higher for Proxy ($p=.079$, Holm $p=.471$). Thus, Proxy did not increase \emph{subjective NASA-TLX workload} over Micro-Gesture, although it was objectively slower and motorically more involved.
+
+% [中文] Mann-Whitney U检验按条件顺序分组（手势优先n=14 vs 代理物优先n=13）检查顺序效应。
+% 主要指标均无显著顺序效应(p>.30)。唯一例外是时间压缩(U=154.0, p=.002)，手势优先组差异更大，
+% 在解读内隐SoA比较时需谨慎。
+\textbf{Order Effects.}
+Order-effect tests compared the within-subject Gesture--Proxy difference between the Gesture-first group ($n=14$) and Proxy-first group ($n=13$). We found no significant order effect for primary measures including decision accuracy, time metrics, NASA-TLX, SoA, SoE, and Outcome Ownership (all $p>.30$). Temporal compression was the sole exception ($U=154.0$, $p=.002$), warranting caution for the implicit SoA comparison and motivating our conservative interpretation of implicit-agency differences.
+
+% [中文] 对27份实验后访谈进行主题分析，考察参与者如何解读主动自主机器人辅助中的三种确认方法。
+% 提取四个主题：因果参与、角色感知、代理感-工作负荷权衡、反馈一致性与覆盖机制。
+\subsubsection{Thematic Analysis of Interviews}
+
+To complement the quantitative measures, we conducted a thematic analysis of 27 post-study interviews. The analysis focused on how participants interpreted their role in each confirmation method rather than simply counting which condition they preferred.
+
+\textbf{Theme 1: Proxy restored causal participation.}
+Across both order groups, participants described Proxy Manipulation as more realistic and participatory. P208 said the proxy condition ``really felt like I was cooking myself,'' and P103 described hand-based object taking as ``more real.'' These comments support the quantitative Q5/Q8 pattern: the proxy did not merely add physical movement, but made users feel that their own action began the causal chain that the robot completed.
+
+\textbf{Theme 2: Micro-Gesture felt like permission, while Proxy felt like initiation.}
+Participants often interpreted Micro-Gesture as issuing a command or granting permission, whereas Proxy was described as enacting intent. P211 contrasted the two roles directly: in Proxy, ``I was directly doing it,'' but in Micro-Gesture the user was in a ``managerial role'' deciding whether to allow the robot to act. P206 similarly described Proxy as guiding an apprentice, while Micro-Gesture felt closer to commanding a subordinate. This theme is the qualitative basis for our role-shift interpretation.
+
+\textbf{Theme 3: Micro-Gesture was motor-light but semantically arbitrary.}
+Participants did not treat Micro-Gesture as simply easier. Several noted that its physical movement was small, but the mapping still had to be learned and remembered. P212 said proxy actions such as pouring or throwing ``fit our everyday experience,'' whereas index-finger and middle-finger meanings had no everyday grounding. P209 similarly explained that Proxy avoided needing to ``think about which gesture meant which.'' This helps explain why Proxy could be slower but still preferred: it traded motor efficiency for semantic naturalness.
+
+\textbf{Theme 4: Meaningful confirmation required feedback coherence and override.}
+Participants emphasized that confirmation only felt meaningful when the proxy action, robot motion, and environmental result formed a coherent causal chain. They also wanted ways to interrupt or revoke actions during real deployment. P112 argued that the system should allow users to ``stop at any time,'' and P108 suggested voice or an open-palm stop gesture. These comments indicate that agency in proactive robot systems depends not only on approving actions, but also on retaining the ability to correct or stop them.
+
+Across themes, the interviews explain why the quantitative effect appears in Q5 and Q8 rather than in the aggregate SoA score. Participants did not simply say that Proxy was more enjoyable; they described a different causal role. Proxy made the user's motion feel continuous with the robot's completion movement, while Micro-Gesture made the user feel like an authorizer of a selected action. Conversely, participants who criticized Proxy often pointed to tracking or feedback breaks, such as unstable grabbing or weak pot feedback, which are exactly the failures that disrupt causal clarity. The qualitative evidence therefore supports the same bounded claim as the item-level statistics: embodied confirmation is valuable when it preserves a coherent action-outcome chain.
+
+% 5.5 偏好与相关性（RQ3）
+\textbf{Preference and Correlations (RQ3).}
+% [中文] 收集偏好排序并分析其与代理感指标的关系。在27名参与者中，15人（67\%）将条件C（代理物操作）
+% 列为最偏好，该偏好模式与外显代理感评分及定性访谈数据广泛一致。
+% 相关分析进一步表征了外显SoA、内隐SoA与偏好间的关系。
+Twenty of 27 participants (74.1\%) preferred Proxy Manipulation over Micro-Gesture (binomial $p=.0192$, 95\% CI $[53.7\%,88.9\%]$), despite its slower interaction time and lack of aggregate SoA advantage. Preference was not significantly correlated with overall SoA ($\rho=.293$, $p=.138$), but Q2 expectation matching was correlated with preference ($\rho=.464$, $p=.015$), suggesting that preference may depend on causal clarity rather than aggregate SoA alone.
+
+\begin{table}[tb]
+\centering
+\caption{Claim-evidence summary for the main Micro-Gesture versus Proxy comparison. The supported claim is selective role shift, not a broad aggregate SoA improvement.}
+\label{tab:claim_evidence}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{0.28\columnwidth}p{0.62\columnwidth}@{}}
+\toprule
+\textbf{Question} & \textbf{Evidence} \\
+\midrule
+Aggregate SoA & No significant Proxy--Gesture difference ($p=.622$; 11-item total $p=.247$). \\
+Self-extension & Q5 significantly higher for Proxy ($p=.040$, $r_{rb}=-.458$). \\
+Authorship & Q8 significantly higher for Proxy ($p=.028$, $r_{rb}=-.476$). \\
+Efficiency & Proxy slower on Total Duration, Total Hindered Time, and Average Decision Time (all $p<.001$). \\
+Workload & No significant subjective NASA-TLX difference ($p=.726$). \\
+Preference & 20/27 preferred Proxy (binomial $p=.0192$). \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Together, these results rule out a simple ``Proxy is better on all agency measures'' conclusion. The defensible conclusion is narrower: Proxy Manipulation changes how participants interpret their role in the action chain, and that role shift can be valuable enough for many users to prefer it despite objective time cost.
+
+% 七、讨论
+\section{Discussion}
+
+% [中文] 讨论部分包含：应用场景（真实机器人探索性研究）、示范式确认增强代理感和具身感的机制(RQ1)、
+% 工作负荷与代理感的权衡(RQ2)、用户偏好与设计建议(RQ3)。
+
+% [中文] 为说明示范式确认方法可扩展至XR厨房模拟之外，我们在真实厨房工作台上用物理机械臂进行了
+% 类似烹饪任务的探索性研究。我们将此研究放在讨论部分而非结果部分，因为其小样本（N=6）
+% 和定性聚焦将其定位为泛化性演示而非统计上确定性的评估。
+\subsection{Real-Robot Exploratory Study}
+\begin{figure}[tb]
+    \centering
+    \includegraphics[width=\columnwidth]{images/physical_robot_setup.png}
+    \caption{System setup for the real-robot exploratory study. Real-world objects are segmented and reconstructed as XR proxies; users manipulate these proxies or use Micro-Gestures to control a physical robot arm.}
+    \Description{Diagram of the physical robot setup in which camera-based segmentation and 3D reconstruction produce XR proxy objects that the user manipulates to control a physical robot arm.}
+    \label{fig:physical_robot_setup}
+\end{figure}
+
+To probe whether the interaction concept could extend beyond the virtual simulation, we conducted a small exploratory study ($N=6$) with a 6-DOF robot arm and an Intel RealSense D435 RGB-D camera on a real kitchen workbench. The physical setup used a three-stage proxy generation pipeline: SAM3 segmented objects from the robot's camera view~\cite{carion2025sam3segmentconcepts}, SAM3D reconstructed each segmented object into an interactive 3D mesh~\cite{2025arXiv251116624S}, and the resulting proxy was placed in XR with collision-based interaction logic. Users selected cooking ingredients by grasping these 3D proxies and placing them into a virtual pot, or by using Micro-Gestures to confirm robot suggestions; the physical robot then executed the corresponding pick-and-place operation.
+
+The exploratory outcomes were broadly consistent with the main XR study at a qualitative level. Participants again described Proxy Manipulation as more natural and intuitive than Micro-Gestures, and questionnaire responses showed the same direction for selection accuracy, agency-related experience, and perceived safety. The physical setup also clarified deployment boundaries. Physicality made the robot feel more useful and consequential, but participants noted that this benefit depends on speed, precision, feedback quality, and low latency; otherwise, the added realism can also make system delays and grasping errors more salient. Participants further suggested that proxy confirmation is best suited to object-level, discrete decisions where the target is concrete but difficult to describe verbally, and less suited to highly dynamic process control such as open-ended cooking. This supports selective deployment rather than universal replacement: physical proxy confirmation should be reserved for decisions where object choice, responsibility, ambiguity, or safety make the added enactment meaningful. Given the small sample, we treat this as preliminary deployment evidence rather than a statistical generalization.
+% 7.1 主动自主下的示范式确认
+\subsection{What Proxy Changes: Role Perception Rather Than Overall Agency (RQ1)}
+% [中文] 定量结果部分支持H1：三个代理感维度均显示显著全局效应，两种确认方法远高于自动基线。
+% 微手势与代理物操作间无显著差异，但SoE维度显示中等效应量。
+% 补充代理感总分保持相同模式。但两个重要模式——一个定量、一个定性——
+% 表明代理物操作方法的优势集中在特定题目而非均匀分布。
+The quantitative results support a narrow interpretation of \textbf{H1}: both confirmation methods increased agency-related ratings over Automatic, but Proxy Manipulation did not significantly improve aggregate SoA over Micro-Gesture. Its distinctive effect was role-specific: Q5 self-extension, Q8 authorship, and interview reports that Proxy felt like initiating an action rather than permitting one. This aligns with action-effect and multifactorial accounts of agency~\cite{haggard2017sense, moore2016agency, chambon2014intentions, synofzik2008beyond} and with prior XR/HCI findings that physical proxies, virtual appendage mappings, and action-outcome coupling can reshape ownership and authorship~\cite{synofzik2008imove, 10.1145/3290605.3300673, 10.1145/3139131.3139149, 10.1145/3613904.3642340}: Proxy combines motor enactment, semantic congruence, and causal clarity, whereas Micro-Gesture is intentional but semantically detached from the cooking action. The non-significant aggregate SoA result is therefore central to the interpretation: Proxy should not be framed as globally stronger agency, but as a role-shift mechanism.
+
+This pattern also rules out two overly simple mechanisms. First, Proxy did not merely add movement; if motor effort alone drove the effect, we would expect a broad improvement across agency items and workload to rise more clearly. Second, Proxy did not make users globally more agentic than Micro-Gesture; the aggregate SoA scores were nearly identical. The more plausible mechanism is that the proxy action changed the user's place in the causal story. By grasping and moving the ingredient proxy, the user performed a recognizable first part of the cooking action, and the robot's movement could then be interpreted as completing that user-started action. Proxy Manipulation therefore functions as a role-signaling interface: it tells the user, through the structure of the action, that they are initiating rather than simply approving automation.
+
+\subsection{Why Did Participants Prefer Proxy Despite Slower Interaction?}
+This preference result matters because it conflicts with a purely efficiency-based account. Proxy Manipulation was significantly slower and did not significantly improve aggregate SoA, yet 20 of 27 participants preferred it. The result therefore points to a different contribution: participants valued the extra action when it transformed confirmation from permission into participation. Interviews suggest that Micro-Gesture was often experienced as authorizing a robot decision, whereas Proxy was experienced as doing part of the task and letting the robot continue. Q5 and Q8 support this explanation at the item level, and the preference correlation with Q2 expectation matching further suggests that causal clarity mattered more than aggregate SoA alone. In this sense, Proxy Manipulation is not a faster interface; it is an interface that makes the user's role more legible to the user.
+
+This interpretation reframes the efficiency cost as a design trade-off rather than a failure. For fast repetitive confirmations, Micro-Gesture is the stronger choice because it minimizes motion and decision latency. For decisions involving taste, personal responsibility, ambiguous objects, or potentially unsafe robot motion, the extra seconds in Proxy Manipulation may be acceptable because they create a more meaningful participation episode. The design implication is therefore conditional: embodied confirmation should be deployed where users benefit from feeling that they began the action, not where the task only requires rapid binary approval.
+
+% 7.3 权衡：努力 vs. 代理感
+\subsection{The Trade-off Between Workload and Agency (RQ2)}
+% [中文] 核心发现：代理物操作在不显著增加总体工作负荷的前提下实现了代理感和具身感优势。
+% 但总体等价掩盖了重要的内部再分配：体力需求显著更高，而符号翻译努力（记忆哪个手势映射到哪个决策）
+% 据定性报告更低。这种从认知-符号负担到具身-物理参与的再分配具有重要设计意义。
+The workload result should be read as a subjective-objective dissociation. Proxy did not increase subjective NASA-TLX workload, but it clearly increased interaction time and showed a marginal trend toward higher physical demand. This means Proxy is not equally efficient; rather, participants often experienced the extra movement as meaningful enough that it did not register as higher overall workload. The interviews help explain this dissociation. Micro-Gesture reduces motor effort, but it can introduce symbolic translation effort because users must remember which arbitrary gesture means accept or reject. Proxy increases reaching and grasping effort, but the action follows everyday object logic. The method is therefore better suited to tasks where participation, responsibility, or deliberation matter more than maximal speed.
+
+% 7.4 设计建议
+\subsection{User Preferences and Preliminary Design Considerations (RQ3)}
+% [中文] 基于主XR研究和探索性真实机械臂研究的发现，提出五条设计建议：
+% 1.使用承载目标动作的替身；2.通过足够迅速但非不现实即时的反馈保持因果清晰度；
+% 3.替身交互与机器人执行间的空间映射一致；4.使用可预测、稳定、逼真的延迟配置而非一味最小化延迟；
+% 5.部署于物理机器人时需考虑用户安全舒适度和对抓取可靠性的信任。
+We therefore frame the design output as preliminary considerations rather than general guidelines. First, use Micro-Gesture confirmation for fast, repetitive, low-risk proposals where users only need to grant or deny permission. Second, use Proxy Manipulation when responsibility, safety, ambiguity, personal preference, or outcome ownership justifies additional decision time. Third, the proxy should afford the target action: a cup should support pouring-like movement, while rejection should be expressed through a clearly dismissive action rather than another arbitrary symbol. Fourth, the system should preserve spatial and causal mapping between proxy action, robot execution, and environmental result; otherwise the confirmation becomes a decorative interaction rather than an agency-supporting one. Fifth, feedback should be prompt and predictable, but not unrealistically instantaneous, so users can understand the robot as continuing their action. Finally, physical deployments should include interruption and override mechanisms, because participants treated the ability to stop an action as part of meaningful control.
+
+\begin{table}[tb]
+\centering
+\caption{Selective deployment considerations suggested by the study. These are preliminary design choices rather than universal prescriptions.}
+\label{tab:deployment}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{@{}p{0.26\columnwidth}p{0.25\columnwidth}p{0.39\columnwidth}@{}}
+\toprule
+\textbf{Situation} & \textbf{Prefer} & \textbf{Reason} \\
+\midrule
+Fast repeated approval & Micro-Gesture & Minimizes physical motion and decision latency. \\
+Low-risk binary choice & Micro-Gesture & Symbolic permission is sufficient when outcome ownership is not central. \\
+Ambiguous object choice & Proxy Manipulation & Object-level enactment clarifies which item and action the user intends. \\
+Personal preference or taste & Proxy Manipulation & Enactment can strengthen authorship and responsibility for the result. \\
+Safety-critical robot motion & Proxy plus override & Causal feedback and interruption support meaningful supervision. \\
+Dynamic continuous control & Neither alone & Discrete confirmation may be insufficient; richer shared-control mechanisms are needed. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% 七点五、局限性与未来工作
+\section{Limitations and Future Work}\label{sec:limitations}
+% [中文] 局限性：(1)固定Round 1顺序效应：条件A总是第一轮，无法与新奇效应和练习效应完全分离；
+% 与条件A的所有比较均混杂首轮-后续轮的差异。未来可采用完全平衡设计或独立组基线。
+% (2)生态效度：烹饪场景单一、每轮仅8次决策事件、虚拟厨房缺乏真实烹饪的感官复杂性；
+% 泛化至高风险或快节奏场景需进一步验证。(3)手部追踪误差的不对称影响：代理物操作依赖抓取-移动
+% 动作链，对追踪精度更敏感；追踪失败可能不成比例地降低代理物操作的代理感和体验质量。
+% (4)欺骗范式的内隐SoA测量、固定样本量、探索性研究小样本。
+% 未来工作：更复杂多步任务、不同主动自主程度、SoA纵向效应、物理机械臂大规模评估。
+This study has several limitations. \textbf{Fixed-order baseline.} Automatic was always administered first to provide a passive observation and timing baseline, so Automatic comparisons are confounded with first-round effects and should be interpreted cautiously; the counterbalanced Micro-Gesture versus Proxy comparison is the stronger causal contrast. A future study could separate these goals by using a between-subjects passive baseline, a fully counterbalanced confirmation-only study, or a pre-study timing calibration phase that does not involve task proposals. \textbf{Scenario scope.} The study used a single virtual cooking scenario with fixed proposal sequences, and generalization to time-critical, high-risk, or open-ended tasks remains untested. Cooking was useful because it combines personal preference, visible outcomes, and object-level actions, but these same properties may make Proxy Manipulation more appealing than it would be in purely instrumental assembly tasks. \textbf{Prototype sensitivity.} Proxy Manipulation is more sensitive to hand-tracking errors than Micro-Gesture because it depends on grasping, moving, and releasing a proxy object. Any tracking loss or collision mismatch can weaken the very causal link the method is intended to create. \textbf{Measurement scope.} The custom questionnaire should be interpreted as agency-related probes rather than a validated scale, and the physical-robot study was exploratory ($N=6$). Preference may reflect expectation matching, causal clarity, role perception, novelty, or their combination.
+
+% [中文] 未来工作可探索更复杂多步任务、不同程度的主动自主、SoA的纵向效应、以及代理物操作范式
+% 在更多任务领域中与物理机械臂的全面评估。特别地，我们期望进一步发展代理物操作范式，使其不仅是
+% 确认通道，更成为一种自然的"示教"机制：当机器人面临常识性问题（如不知道如何使用某件工具、
+% 不确定物品的摆放方式）时，用户可以通过代理物直接演示期望的操作方式，从而让机器人从单次示范中
+% 学习新的操作技能。这将把代理物操作从"确认意图"扩展到"传授知识"，使人机协作在高度自主化的前提下
+% 仍保持自然且可适应。
+Future work should test more complex tasks, vary autonomy levels, examine longitudinal agency effects, and evaluate physical robot deployments at larger scale. One direction is to compare confirmation methods under different stakes: low-risk repetitive confirmations may favor Micro-Gesture, while safety-critical or preference-heavy choices may favor Proxy Manipulation. Another direction is automatic proxy-confirmation generation, where the robot infers object affordances, synthesizes an appropriate proxy, and derives task-specific judgment criteria. In the longer term, proxy interaction could extend from confirmation to teaching-by-demonstration: when the robot is uncertain how to use an object or where to place it, a user could demonstrate the intended action through the proxy, allowing the robot to learn from a single task-relevant enactment while still preserving a clear human role in the action chain.
+
+% 八、结论
+\section{Conclusion}
+
+% [中文] 本文提出了XR中主动自主穿戴式机械臂的代理物操作确认方法。通过在虚拟替身上执行任务相关的
+% 示范手势，结合人在环路上设计，旨在保持机器人主动能力和整体效率的同时不削弱代理感。
+% 被试内实验(N=27)比较了该方法与微手势确认和全自动基线：两种确认方法均提升代理感并引发时间压缩，
+% 但代理物操作对SoA的增强更为显著，同时强化具身感和结果归属感，且呈现更高任务准确度趋势——
+% 表明在确认环节恢复身体动作可改善代理感和信任、减少错误。物理机器人探索性研究结果一致。
+This paper introduced Proxy Manipulation, an enactment-based confirmation method for proactively autonomous wearable robotic arms in XR. Rather than asking users only to symbolically approve a robot-selected action, Proxy Manipulation lets them begin the task-relevant action through a virtual proxy and lets the robot continue it. In a within-subjects study ($N=27$), both Micro-Gesture and Proxy Manipulation increased agency-related ratings over an Automatic passive-observation baseline and elicited temporal compression, while Proxy Manipulation did not significantly improve aggregate SoA over Micro-Gesture. Its contribution was selective: it strengthened self-extension (Q5) and authorship (Q8), shifted users' perceived role from permission-giving toward action initiation, and was preferred by 20 of 27 participants despite significantly longer decision times. An exploratory physical-robot study ($N=6$) provided preliminary evidence that the interaction concept can extend beyond the virtual simulation. These findings suggest that enactment-based confirmation is most useful when outcome ownership, responsibility, safety, ambiguity, or personal preference justifies the added operational cost.
+
+\section{Declaration of AI Usage}
+
+During the preparation of this work, the authors used AI tools to organize materials, improve the structure of the writing, and do proofreading. The final content has been reviewed and confirmed by all authors.
+
+%% Acknowledgments are omitted for anonymous review.
+
+
+\bibliographystyle{ACM-Reference-Format}
+\bibliography{_references}
+\end{document}
