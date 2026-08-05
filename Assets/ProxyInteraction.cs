@@ -18,7 +18,8 @@ public enum ProxyVisualStyle
 {
     Style3D,
     Style2D,
-    Away
+    Hide,
+    Hide2D
 }
 
 public class ProxyInteraction : MonoBehaviour
@@ -164,7 +165,8 @@ public class ProxyInteraction : MonoBehaviour
             panMeshRenderers = pan.GetComponentsInChildren<MeshRenderer>(true);
         }
 
-        if (mode == InteractionMode.Proxy || mode == InteractionMode.ProxyMenu)
+        if (mode == InteractionMode.Proxy || mode == InteractionMode.ProxyMenu ||
+            mode == InteractionMode.Gesture || mode == InteractionMode.Auto)
             ApplyProxyVisualStyle();
 
         // Disable grabbables at start — they get enabled when a prompt is shown
@@ -189,14 +191,22 @@ public class ProxyInteraction : MonoBehaviour
     private void ApplyProxyVisualStyle()
     {
         // Re-apply current visibility state through SetItemVisible so the correct
-        // renderer (3D mesh vs 2D sprite) is shown/hidden for the active style.
+        // representation (3D mesh / 2D sprite) is shown for the active style.
         SetItemVisible(waterCup, IsItemVisible(waterCup));
         SetItemVisible(saltContainer, IsItemVisible(saltContainer));
         SetItemVisible(pan, IsItemVisible(pan));
 
+        // Hide / Hide2D styles hide the robot arms entirely (colliders/IK keep running).
         if (experiment != null && experiment.armSys != null)
-            experiment.armSys.SetAwayMode(proxyVisualStyle == ProxyVisualStyle.Away);
+            experiment.armSys.SetArmsHidden(IsArmsHiddenStyle);
     }
+
+    /// <summary>True when the robot arms are visually hidden (Hide or Hide2D style) — used to
+    /// gate/adjust logic that would otherwise depend on the arms being visible/present.</summary>
+    private bool IsArmsHiddenStyle => proxyVisualStyle == ProxyVisualStyle.Hide || proxyVisualStyle == ProxyVisualStyle.Hide2D;
+
+    /// <summary>True when the current style should show items as 2D sprites (Style2D or Hide2D).</summary>
+    private bool IsUse2DStyle => proxyVisualStyle == ProxyVisualStyle.Style2D || proxyVisualStyle == ProxyVisualStyle.Hide2D;
 
     private void SetupProxyMenu()
     {
@@ -844,7 +854,7 @@ public class ProxyInteraction : MonoBehaviour
 
         if (obj == pan)
         {
-            bool use2D = proxyVisualStyle == ProxyVisualStyle.Style2D;
+            bool use2D = IsUse2DStyle;
             if (panMeshRenderers != null)
                 foreach (var r in panMeshRenderers) r.enabled = visible && !use2D;
             if (pan2DSprite != null) pan2DSprite.SetActive(visible && use2D);
@@ -858,7 +868,7 @@ public class ProxyInteraction : MonoBehaviour
 
         if (meshRenderer != null || sprite2D != null)
         {
-            bool use2D = proxyVisualStyle == ProxyVisualStyle.Style2D;
+            bool use2D = IsUse2DStyle;
             if (meshRenderer != null) meshRenderer.enabled = visible && !use2D;
             if (sprite2D != null) sprite2D.SetActive(visible && use2D);
             return;
@@ -904,14 +914,14 @@ public class ProxyInteraction : MonoBehaviour
     }
 
     /// <summary>
-    /// Checks visibility for the representation matching the current style,
-    /// falling back to the other representation if the expected one is unassigned
-    /// (e.g. missing Inspector reference), so a setup mistake doesn't silently
-    /// force-release grabs on an otherwise-held item.
+    /// Checks visibility for the representation matching the current style
+    /// (3D mesh / 2D sprite), falling back to the other representation if the
+    /// expected one is unassigned (e.g. missing Inspector reference), so a
+    /// setup mistake doesn't silently force-release grabs on an otherwise-held item.
     /// </summary>
     private bool IsRepresentationVisible(MeshRenderer meshRenderer, GameObject sprite2D)
     {
-        bool use2D = proxyVisualStyle == ProxyVisualStyle.Style2D;
+        bool use2D = IsUse2DStyle;
 
         if (use2D)
         {
@@ -919,12 +929,10 @@ public class ProxyInteraction : MonoBehaviour
             if (meshRenderer != null) return meshRenderer.enabled;
             return false;
         }
-        else
-        {
-            if (meshRenderer != null) return meshRenderer.enabled;
-            if (sprite2D != null) return sprite2D.activeSelf;
-            return false;
-        }
+
+        if (meshRenderer != null) return meshRenderer.enabled;
+        if (sprite2D != null) return sprite2D.activeSelf;
+        return false;
     }
 
     private static void TryResetIfFree(GameObject obj, Pose pose, Grabbable grab)

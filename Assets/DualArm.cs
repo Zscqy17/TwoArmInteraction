@@ -37,10 +37,10 @@ public class DualArm : MonoBehaviour
     [Tooltip("Elbow offset from head in (right, up, forward) using yaw-only basis. X is lateral (mirrored between arms), Y and Z are shared.")]
     public Vector3 elbowOffset = new Vector3(0.45f, -0.55f, 0.10f);
 
-    [Header("Away Mode")]
-    [Tooltip("When enabled, the arm base position is shifted laterally away from the user's actual position.")]
-    public bool awayModeEnabled = false;
-    public float awayLateralOffset = 2f;
+    [Header("Hide Mode")]
+    [Tooltip("When enabled, hides the robot arm meshes (colliders/IK still function) — used for the Hide proxy visual style.")]
+    public bool armsHidden = false;
+    private Renderer[] armRenderers;
 
     // Each arm has independent automation state
     private bool overtakeLeft, overtakeRight;
@@ -49,6 +49,14 @@ public class DualArm : MonoBehaviour
     {
         overtakeLeft = false;
         overtakeRight = false;
+
+        // Gather all renderers under both shoulder roots so Hide mode can hide
+        // the entire arm rig without disabling colliders/IK.
+        var renderers = new List<Renderer>();
+        if (robotSholderLeft != null) renderers.AddRange(robotSholderLeft.GetComponentsInChildren<Renderer>(true));
+        if (robotSholderRight != null) renderers.AddRange(robotSholderRight.GetComponentsInChildren<Renderer>(true));
+        armRenderers = renderers.ToArray();
+        SetArmsHidden(armsHidden);
     }
 
     void Update()
@@ -103,8 +111,6 @@ public class DualArm : MonoBehaviour
         GetYawOnlyBasis(out var fwd, out var right, out var up);
         Quaternion yawRot = GetYawOnlyRotation();
         Vector3 basePosition = head.position;
-        if (awayModeEnabled)
-            basePosition += right * awayLateralOffset;
 
         // Shoulders: mirror only the lateral component (X)
         var shoulderWorld = YawSpaceOffsetToWorld(shoulderOffset, right, up, fwd);
@@ -211,9 +217,19 @@ public class DualArm : MonoBehaviour
     public bool IsLeftOvertaking => overtakeLeft;
     public bool IsRightOvertaking => overtakeRight;
 
-    public void SetAwayMode(bool enabled)
+    /// <summary>
+    /// Hides/shows the robot arm meshes (renderers only). Colliders, IK, and
+    /// position updates keep running normally — used for the Hide proxy
+    /// visual style where the robot response is not shown to the user.
+    /// </summary>
+    public void SetArmsHidden(bool hidden)
     {
-        awayModeEnabled = enabled;
+        armsHidden = hidden;
+        if (armRenderers == null) return;
+        foreach (var r in armRenderers)
+        {
+            if (r != null) r.enabled = !hidden;
+        }
     }
 
     public void Resart()
