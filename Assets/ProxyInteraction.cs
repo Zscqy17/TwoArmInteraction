@@ -16,18 +16,9 @@ public enum InteractionMode
 
 public enum ProxyVisualStyle
 {
-    Abstract3D,
-    Abstract2D,
-    Realistic3D,
-    Realistic2D
-}
-
-[Serializable]
-public class ProxyVisualSet
-{
-    public GameObject water;
-    public GameObject salt;
-    public GameObject pan;
+    Style3D,
+    Style2D,
+    Away
 }
 
 public class ProxyInteraction : MonoBehaviour
@@ -37,7 +28,7 @@ public class ProxyInteraction : MonoBehaviour
     public InteractionMode Mode => mode;
 
     [Tooltip("Used when mode is Proxy / ProxyMenu. Pick manually per trial.")]
-    [SerializeField] private ProxyVisualStyle proxyVisualStyle = ProxyVisualStyle.Abstract3D;
+    [SerializeField] private ProxyVisualStyle proxyVisualStyle = ProxyVisualStyle.Style3D;
     public ProxyVisualStyle VisualStyle => proxyVisualStyle;
 
     /// <summary>Log label: "Auto", or "Proxy_Abstract3D", etc.</summary>
@@ -55,20 +46,20 @@ public class ProxyInteraction : MonoBehaviour
     [SerializeField] private GameObject waterNotifyCanvas;
     [SerializeField] private GameObject saltNotifyCanvas;
 
-    [Header("Items – Proxy (active roots; overwritten from visual set in Proxy modes)")]
+    [Header("Items – Proxy (active roots; 3D mesh + collider + Grabbable live here)")]
     [SerializeField] private GameObject waterCup;
+    [SerializeField] private GameObject waterCup2DSprite;
     private Grabbable waterCupGrab;
+    private MeshRenderer waterCupMeshRenderer;
     private MeshFilter waterCupMeshFilter;
     [SerializeField] private GameObject saltContainer;
+    [SerializeField] private GameObject saltContainer2DSprite;
     private Grabbable saltContainerGrab;
+    private MeshRenderer saltContainerMeshRenderer;
     private MeshFilter saltContainerMeshFilter;
     [SerializeField] private GameObject pan;
-
-    [Header("Proxy Visual Sets")]
-    [SerializeField] private ProxyVisualSet abstract3D;
-    [SerializeField] private ProxyVisualSet abstract2D;
-    [SerializeField] private ProxyVisualSet realistic3D;
-    [SerializeField] private ProxyVisualSet realistic2D;
+    [SerializeField] private GameObject pan2DSprite;
+    private MeshRenderer[] panMeshRenderers;
 
     [Header("Reticles")]
     [SerializeField] private ReticleMeshDrawer leftProxyInHand;
@@ -152,14 +143,12 @@ public class ProxyInteraction : MonoBehaviour
 
     private void Awake()
     {
-        if (mode == InteractionMode.Proxy || mode == InteractionMode.ProxyMenu)
-            ApplyProxyVisualStyle();
-
         if (waterCup != null)
         {
             waterCupCollider = waterCup.GetComponentInChildren<Collider>();
             waterCupStartPose = new Pose(waterCup.transform.position, waterCup.transform.rotation);
             waterCupGrab = waterCup.GetComponent<Grabbable>();
+            waterCupMeshRenderer = waterCup.GetComponentInChildren<MeshRenderer>();
             waterCupMeshFilter = waterCup.GetComponentInChildren<MeshFilter>();
         }
         if (saltContainer != null)
@@ -167,8 +156,16 @@ public class ProxyInteraction : MonoBehaviour
             saltContainerCollider = saltContainer.GetComponentInChildren<Collider>();
             saltContainerStartPose = new Pose(saltContainer.transform.position, saltContainer.transform.rotation);
             saltContainerGrab = saltContainer.GetComponent<Grabbable>();
+            saltContainerMeshRenderer = saltContainer.GetComponentInChildren<MeshRenderer>();
             saltContainerMeshFilter = saltContainer.GetComponentInChildren<MeshFilter>();
         }
+        if (pan != null)
+        {
+            panMeshRenderers = pan.GetComponentsInChildren<MeshRenderer>(true);
+        }
+
+        if (mode == InteractionMode.Proxy || mode == InteractionMode.ProxyMenu)
+            ApplyProxyVisualStyle();
 
         // Disable grabbables at start — they get enabled when a prompt is shown
         SetGrabbableEnabled(waterCupGrab, false);
@@ -191,42 +188,14 @@ public class ProxyInteraction : MonoBehaviour
 
     private void ApplyProxyVisualStyle()
     {
-        ProxyVisualSet selected = GetVisualSet(proxyVisualStyle);
-        Debug.Assert(selected != null, "Proxy visual set missing for " + proxyVisualStyle);
-        Debug.Assert(selected.water != null, proxyVisualStyle + ".water missing");
-        Debug.Assert(selected.salt != null, proxyVisualStyle + ".salt missing");
-        Debug.Assert(selected.pan != null, proxyVisualStyle + ".pan missing");
+        // Re-apply current visibility state through SetItemVisible so the correct
+        // renderer (3D mesh vs 2D sprite) is shown/hidden for the active style.
+        SetItemVisible(waterCup, IsItemVisible(waterCup));
+        SetItemVisible(saltContainer, IsItemVisible(saltContainer));
+        SetItemVisible(pan, IsItemVisible(pan));
 
-        ProxyVisualSet[] all =
-        {
-            abstract3D, abstract2D, realistic3D, realistic2D
-        };
-        for (int i = 0; i < all.Length; i++)
-        {
-            ProxyVisualSet set = all[i];
-            Debug.Assert(set != null && set.water != null && set.salt != null && set.pan != null,
-                "All four Proxy Visual Sets must be assigned");
-            bool on = set == selected;
-            set.water.SetActive(on);
-            set.salt.SetActive(on);
-            set.pan.SetActive(on);
-        }
-
-        waterCup = selected.water;
-        saltContainer = selected.salt;
-        pan = selected.pan;
-    }
-
-    private ProxyVisualSet GetVisualSet(ProxyVisualStyle style)
-    {
-        switch (style)
-        {
-            case ProxyVisualStyle.Abstract3D: return abstract3D;
-            case ProxyVisualStyle.Abstract2D: return abstract2D;
-            case ProxyVisualStyle.Realistic3D: return realistic3D;
-            case ProxyVisualStyle.Realistic2D: return realistic2D;
-            default: return null;
-        }
+        if (experiment != null && experiment.armSys != null)
+            experiment.armSys.SetAwayMode(proxyVisualStyle == ProxyVisualStyle.Away);
     }
 
     private void SetupProxyMenu()
@@ -869,9 +838,32 @@ public class ProxyInteraction : MonoBehaviour
         }
     }
 
-    private static void SetItemVisible(GameObject obj, bool visible)
+    private void SetItemVisible(GameObject obj, bool visible)
     {
         if (obj == null) return;
+
+        if (obj == pan)
+        {
+            bool use2D = proxyVisualStyle == ProxyVisualStyle.Style2D;
+            if (panMeshRenderers != null)
+                foreach (var r in panMeshRenderers) r.enabled = visible && !use2D;
+            if (pan2DSprite != null) pan2DSprite.SetActive(visible && use2D);
+            return;
+        }
+
+        MeshRenderer meshRenderer = null;
+        GameObject sprite2D = null;
+        if (obj == waterCup) { meshRenderer = waterCupMeshRenderer; sprite2D = waterCup2DSprite; }
+        else if (obj == saltContainer) { meshRenderer = saltContainerMeshRenderer; sprite2D = saltContainer2DSprite; }
+
+        if (meshRenderer != null || sprite2D != null)
+        {
+            bool use2D = proxyVisualStyle == ProxyVisualStyle.Style2D;
+            if (meshRenderer != null) meshRenderer.enabled = visible && !use2D;
+            if (sprite2D != null) sprite2D.SetActive(visible && use2D);
+            return;
+        }
+
         foreach (var r in obj.GetComponentsInChildren<Renderer>(true)) r.enabled = visible;
     }
 
@@ -894,11 +886,45 @@ public class ProxyInteraction : MonoBehaviour
         grabbable.enabled = true;
     }
 
-    private static bool IsItemVisible(GameObject obj)
+    private bool IsItemVisible(GameObject obj)
     {
         if (obj == null) return false;
+
+        if (obj == waterCup)
+            return IsRepresentationVisible(waterCupMeshRenderer, waterCup2DSprite);
+        if (obj == saltContainer)
+            return IsRepresentationVisible(saltContainerMeshRenderer, saltContainer2DSprite);
+        if (obj == pan)
+            return IsRepresentationVisible(
+                panMeshRenderers != null && panMeshRenderers.Length > 0 ? panMeshRenderers[0] : null,
+                pan2DSprite);
+
         var renderer = obj.GetComponentInChildren<Renderer>(true);
         return renderer != null && renderer.enabled;
+    }
+
+    /// <summary>
+    /// Checks visibility for the representation matching the current style,
+    /// falling back to the other representation if the expected one is unassigned
+    /// (e.g. missing Inspector reference), so a setup mistake doesn't silently
+    /// force-release grabs on an otherwise-held item.
+    /// </summary>
+    private bool IsRepresentationVisible(MeshRenderer meshRenderer, GameObject sprite2D)
+    {
+        bool use2D = proxyVisualStyle == ProxyVisualStyle.Style2D;
+
+        if (use2D)
+        {
+            if (sprite2D != null) return sprite2D.activeSelf;
+            if (meshRenderer != null) return meshRenderer.enabled;
+            return false;
+        }
+        else
+        {
+            if (meshRenderer != null) return meshRenderer.enabled;
+            if (sprite2D != null) return sprite2D.activeSelf;
+            return false;
+        }
     }
 
     private static void TryResetIfFree(GameObject obj, Pose pose, Grabbable grab)
@@ -1027,7 +1053,7 @@ public class ProxyInteraction : MonoBehaviour
     private static float PickThreshold(int index)
     {
         if (index < 0 || index >= ThresholdRanges.Length) return float.MaxValue;
-        return Random.Range(ThresholdRanges[index][0], ThresholdRanges[index][1]);
+        return UnityEngine.Random.Range(ThresholdRanges[index][0], ThresholdRanges[index][1]);
     }
 
     private void ResetWaterItem()

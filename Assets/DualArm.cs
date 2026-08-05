@@ -37,6 +37,11 @@ public class DualArm : MonoBehaviour
     [Tooltip("Elbow offset from head in (right, up, forward) using yaw-only basis. X is lateral (mirrored between arms), Y and Z are shared.")]
     public Vector3 elbowOffset = new Vector3(0.45f, -0.55f, 0.10f);
 
+    [Header("Away Mode")]
+    [Tooltip("When enabled, the arm base position is shifted laterally away from the user's actual position.")]
+    public bool awayModeEnabled = false;
+    public float awayLateralOffset = 2f;
+
     // Each arm has independent automation state
     private bool overtakeLeft, overtakeRight;
 
@@ -98,6 +103,8 @@ public class DualArm : MonoBehaviour
         GetYawOnlyBasis(out var fwd, out var right, out var up);
         Quaternion yawRot = GetYawOnlyRotation();
         Vector3 basePosition = head.position;
+        if (awayModeEnabled)
+            basePosition += right * awayLateralOffset;
 
         // Shoulders: mirror only the lateral component (X)
         var shoulderWorld = YawSpaceOffsetToWorld(shoulderOffset, right, up, fwd);
@@ -203,6 +210,11 @@ public class DualArm : MonoBehaviour
 
     public bool IsLeftOvertaking => overtakeLeft;
     public bool IsRightOvertaking => overtakeRight;
+
+    public void SetAwayMode(bool enabled)
+    {
+        awayModeEnabled = enabled;
+    }
 
     public void Resart()
     {
