@@ -62,6 +62,10 @@ public class ProxyInteraction : MonoBehaviour
     [SerializeField] private GameObject pan2DSprite;
     private MeshRenderer[] panMeshRenderers;
 
+    [Header("Items – Hide / Hide2D only (e.g. detached grab handles shown when arms are hidden)")]
+    [SerializeField] private GameObject waterHandle;
+    [SerializeField] private GameObject saltHandle;
+
     [Header("Reticles")]
     [SerializeField] private ReticleMeshDrawer leftProxyInHand;
     [SerializeField] private ReticleMeshDrawer rightProxyInHand;
@@ -199,6 +203,11 @@ public class ProxyInteraction : MonoBehaviour
         // Hide / Hide2D styles hide the robot arms entirely (colliders/IK keep running).
         if (experiment != null && experiment.armSys != null)
             experiment.armSys.SetArmsHidden(IsArmsHiddenStyle);
+
+        // Handles live on the actual mug/shaker (not the proxy) — their visibility depends
+        // only on the current style, never on prompt/accept/deny state.
+        if (waterHandle != null) waterHandle.SetActive(IsArmsHiddenStyle);
+        if (saltHandle != null) saltHandle.SetActive(IsArmsHiddenStyle);
     }
 
     /// <summary>True when the robot arms are visually hidden (Hide or Hide2D style) — used to
